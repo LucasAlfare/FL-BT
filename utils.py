@@ -71,7 +71,7 @@ class SeparationInfo:
 
 def download_youtube_audio(url: str, output_path: str) -> DownloadedSongInfo | None:
     """
-    Downloads the audio from a YouTube video.
+    Downloads the audio from a YouTube video using [pytubefix] library.
 
     Args:
         url (str): The URL of the YouTube video.
@@ -120,14 +120,13 @@ def separate_4stems(input_path: str, output_path: str, codec: Codec = Codec.MP3)
 
         return SeparationInfo(input_path=input_path, output_path=output_path, codec=codec)
     except Exception as e:
-        print(f'Error trying to separate stems for the input {input_path}.')
-        print(f'The error:\n{e}')
+        print(f'Error trying to separate stems for the input {input_path}. The error:\n{e}')
         return None
 
 
 def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
     """
-    Cria um arquivo ZIP a partir do conteúdo da pasta especificada.
+    Creates a ZIP file using the specified content.
     """
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
@@ -139,7 +138,7 @@ def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
 
 def cleanup_path(path: str) -> None:
     """
-    Remove arquivo ou pasta, recursivamente se for pasta.
+    Used for clean up. Nothing is kept after the separation.
     """
     if os.path.isdir(path):
         shutil.rmtree(path)

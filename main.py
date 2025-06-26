@@ -8,7 +8,12 @@ import uuid
 app = FastAPI()
 
 
-@app.post('/yt-path/{url:path}')
+@app.get("/api/health")
+def health():
+    return "Hello from FastAPI!"
+
+
+@app.post('/api/yt-path/{url:path}')
 async def yt_path(background_tasks: BackgroundTasks, url: str = Path(...)):
     base_dir = f'temp/{uuid.uuid4()}'
     download_dir = f'{base_dir}/download'
