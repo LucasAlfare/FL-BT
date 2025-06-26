@@ -1,0 +1,5 @@
+numpy<2 # locking numpy to older versions because spleeter doesn't have ssupport for new versions
+spleeter
+pytubefix
+fastapi~=0.115.14
+pydantic~=2.11.7
