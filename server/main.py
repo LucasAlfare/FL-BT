@@ -1,11 +1,16 @@
-#  main.py file
+# server/main.py
 
-from lib import *
+import os
+
+from celery.result import AsyncResult
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
 from fastapi import Path
-from fastapi import BackgroundTasks
-import uuid
+from fastapi.responses import JSONResponse, FileResponse
+
+from celery_app import celery_app  # celery instance import
+from lib import cleanup_path
+from tasks import process_video_task  # celery task import
+from tasks import celery_app
 
 app = FastAPI()
 
@@ -15,29 +20,36 @@ def health():
     return "Hello from FastAPI!"
 
 
-# cls; curl.exe -X POST "http://localhost:8000/api/video/id/7085PPuxRiQ"
 @app.post('/api/video/id/{video_id:path}')
-async def yt_path(background_tasks: BackgroundTasks, video_id: str = Path(...)):
-    base_dir = f'temp/{uuid.uuid4()}'
-    download_dir = f'{base_dir}/download'
-    separate_dir = f'{base_dir}/separated'
+def submit_video(video_id: str = Path(...)):
+    task = process_video_task.delay(video_id)
+    return JSONResponse({"task_id": task.id})
 
-    os.makedirs(download_dir, exist_ok=True)
-    os.makedirs(separate_dir, exist_ok=True)
 
-    downloaded = download_youtube_audio(f'https://youtube.com/watch?v={video_id}', download_dir)
-    if not downloaded:
-        cleanup_path(base_dir)
-        raise HTTPException(status_code=400, detail='Download failed')
+@app.get('/api/task/status/{task_id}')
+def get_task_status(task_id: str):
+    task_result = AsyncResult(task_id, app=celery_app)
+    response = {
+        "task_id": task_id,
+        "status": task_result.status,
+        "result": task_result.result if task_result.successful() else None,
+        "error": str(task_result.result) if task_result.failed() else None,
+    }
+    return JSONResponse(response)
 
-    separated = separate_4stems(downloaded.output_os_path, separate_dir)
-    if not separated:
-        cleanup_path(base_dir)
-        raise HTTPException(status_code=500, detail='Separation failed')
 
-    zip_file_name = f'{downloaded.title}.zip'  # replace spaces with underscores or no?
-    zip_path = f'{base_dir}/{zip_file_name}'
-    create_zip_from_folder(separate_dir, zip_path)
+@app.get('/api/task/result/{task_id}')
+def download_result(task_id: str):
+    task_result = AsyncResult(task_id, app=celery_app)
+    if not task_result.successful():
+        raise HTTPException(status_code=404, detail="Task result not available")
 
-    background_tasks.add_task(cleanup_path, base_dir)
-    return FileResponse(zip_path, media_type='application/zip', filename=f'{zip_file_name}')
+    zip_path = task_result.result
+    if not zip_path or not os.path.isfile(zip_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    response = FileResponse(zip_path, media_type='application/zip', filename=os.path.basename(zip_path))
+
+    # Clean up after sending file
+    cleanup_path(os.path.dirname(zip_path))
+    return response

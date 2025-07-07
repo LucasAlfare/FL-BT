@@ -3,4 +3,5 @@ spleeter
 pytubefix
 fastapi~=0.115.14
 pydantic~=2.11.7
-uvicorn
+uvicorn[standard]
+celery[redis]

@@ -15,26 +15,26 @@ import androidx.compose.ui.window.application
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.joinAll
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import java.io.File
-
-// simple client for testing (with jetpack compose desktop/kotlin/ktor etc)
-fun main() = application {
-  val httpClient = HttpClient(CIO)
-  Window(onCloseRequest = ::exitApplication) {
-    App(httpClient)
-  }
-}
 
 @Composable
 fun App(client: HttpClient) {
   var inputText by remember { mutableStateOf("") }
   val inputs = remember { mutableStateListOf<String>() }
   val scope = rememberCoroutineScope()
+
+  // Map taskId -> Pair(videoId, status)
+  val tasksStatus = remember { mutableStateMapOf<String, Pair<String, String>>() }
+  val downloadsDir = File("downloads").apply { mkdirs() }
 
   Column(modifier = Modifier.padding(16.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -44,7 +44,7 @@ fun App(client: HttpClient) {
         onValueChange = { inputText = it },
         modifier = Modifier.weight(1f)
       )
-      Spacer(modifier = Modifier.width(8.dp))
+      Spacer(Modifier.width(8.dp))
       Button(onClick = {
         if (inputText.isNotBlank()) {
           inputs.add(inputText.trim())
@@ -55,12 +55,25 @@ fun App(client: HttpClient) {
       }
     }
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(Modifier.height(12.dp))
 
     Button(
       onClick = {
         scope.launch {
-          processYouTubeIds(inputs.toList(), client)
+          tasksStatus.clear()
+          inputs.forEach { videoId ->
+            launch {
+              try {
+                // Submit job
+                val response: SubmitResponse = client.post("http://localhost:8000/api/video/id/$videoId").body()
+                val taskId = response.task_id
+                tasksStatus[taskId] = videoId to "PENDING"
+                pollTask(taskId, videoId, client, tasksStatus, downloadsDir)
+              } catch (e: Exception) {
+                tasksStatus["error_$videoId"] = videoId to "Erro ao submeter: ${e.message}"
+              }
+            }
+          }
           inputs.clear()
         }
       },
@@ -69,39 +82,90 @@ fun App(client: HttpClient) {
       Text("Converter")
     }
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(Modifier.height(12.dp))
 
-    if (inputs.isNotEmpty()) {
+    if (tasksStatus.isNotEmpty()) {
       LazyColumn {
-        item { Text("IDs adicionados:") }
-        items(inputs) { id -> Text(id) }
+        item { Text("Status das tarefas:") }
+        items(tasksStatus.toList()) { (taskId, pair) ->
+          val (videoId, status) = pair
+          Text("$videoId : $status")
+        }
       }
     }
   }
 }
 
-suspend fun processYouTubeIds(ids: List<String>, client: HttpClient) = coroutineScope {
-  val downloadsDir = File("downloads")
-  downloadsDir.mkdirs()
-
-  ids.map { id ->
-    launch {
-      try {
-        val response: HttpResponse =
-          client.post("http://localhost:8000/api/video/id/$id")
-        if (response.status.value in 200..299) {
-          val bytes = response.body<ByteArray>()
-          File(downloadsDir, "$id.zip").writeBytes(bytes)
-          println("Download de $id salvo com sucesso.")
-        } else {
-          println("Erro $id: HTTP ${response.status.value}")
+suspend fun pollTask(
+  taskId: String,
+  videoId: String,
+  client: HttpClient,
+  tasksStatus: MutableMap<String, Pair<String, String>>,
+  downloadsDir: File
+) {
+  while (true) {
+    delay(3000) // 3 segundos
+    try {
+      val statusResponse: TaskStatusResponse = client.get("http://localhost:8000/api/task/status/$taskId").body()
+      val status = statusResponse.status
+      tasksStatus[taskId] = videoId to status
+      when (status) {
+        "SUCCESS" -> {
+          // Baixar arquivo
+          val httpResponse: HttpResponse = client.get("http://localhost:8000/api/task/result/$taskId") {
+            timeout { requestTimeoutMillis = 60_000 }
+          }
+          if (httpResponse.status == HttpStatusCode.OK) {
+            val bytes = httpResponse.body<ByteArray>()
+            File(downloadsDir, "$videoId.zip").writeBytes(bytes)
+            tasksStatus[taskId] = videoId to "Concluído e baixado"
+          } else {
+            tasksStatus[taskId] = videoId to "Erro no download: HTTP ${httpResponse.status.value}"
+          }
+          break
         }
-      } catch (e: Exception) {
-        println("Falha ao processar $id: ${e.message}")
+
+        "FAILURE", "REVOKED" -> {
+          tasksStatus[taskId] = videoId to "Falha na tarefa"
+          break
+        }
+        // continua aguardando
       }
+    } catch (e: Exception) {
+      tasksStatus[taskId] = videoId to "Erro ao consultar status: ${e.message}"
+      break
     }
-  }.joinAll()
+  }
 }
+
+@Serializable
+data class SubmitResponse(val task_id: String)
+
+@Serializable
+data class TaskStatusResponse(val task_id: String, val status: String, val result: String?, val error: String?)
+
+fun main() = application {
+  val httpClient = HttpClient(CIO) {
+    expectSuccess = false
+
+    install(ContentNegotiation) {
+      json()
+    }
+
+    install(HttpTimeout) {
+      requestTimeoutMillis = 120_000L
+    }
+  }
+  Window(onCloseRequest = ::exitApplication) {
+    App(httpClient)
+  }
+}
+
+/*
+celery -A celery_app.celery_app worker --loglevel=info
+
+uvicorn main:app --reload
+ */
 
 /*
 Como viu, meu projeto python usa Spleeter, que por sua vez usa os binários FFMPEG. Eu tenho esses binários no meu windows adicionados no meu PATH.
