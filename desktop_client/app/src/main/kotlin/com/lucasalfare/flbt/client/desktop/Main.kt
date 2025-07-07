@@ -1,13 +1,10 @@
 package com.lucasalfare.flbt.client.desktop
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.Button
 import androidx.compose.material.Text
-import androidx.compose.material.TextField
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -15,160 +12,86 @@ import androidx.compose.ui.window.application
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.File
 
-@Composable
-fun App(client: HttpClient) {
-  var inputText by remember { mutableStateOf("") }
-  val inputs = remember { mutableStateListOf<String>() }
-  val scope = rememberCoroutineScope()
+// Client.kt
+val client = HttpClient(CIO) {
+  install(ContentNegotiation) {
+    json(Json {
+      isLenient = true
+    })
+  }
+}
+const val server = "http://localhost:8000"
 
-  // Map taskId -> Pair(videoId, status)
-  val tasksStatus = remember { mutableStateMapOf<String, Pair<String, String>>() }
-  val downloadsDir = File("downloads").apply { mkdirs() }
+@Serializable
+data class Task(
+  @SerialName("video_id") val id: String,
+  var status: String = "PENDING",
+  var error: String? = null
+)
+
+
+@Composable
+fun App() {
+  var input by remember { mutableStateOf("") }
+  val tasks = remember { mutableStateOf(listOf<Task>()) }
 
   Column(modifier = Modifier.padding(16.dp)) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      TextField(
-        value = inputText,
-        label = { Text("ID de vídeo do YouTube:") },
-        onValueChange = { inputText = it },
-        modifier = Modifier.weight(1f)
-      )
-      Spacer(Modifier.width(8.dp))
-      Button(onClick = {
-        if (inputText.isNotBlank()) {
-          inputs.add(inputText.trim())
-          inputText = ""
-        }
-      }) {
-        Text("Adicionar")
-      }
-    }
-
-    Spacer(Modifier.height(12.dp))
-
-    Button(
-      onClick = {
-        scope.launch {
-          tasksStatus.clear()
-          inputs.forEach { videoId ->
-            launch {
-              try {
-                // Submit job
-                val response: SubmitResponse = client.post("http://localhost:8000/api/video/id/$videoId").body()
-                val taskId = response.task_id
-                tasksStatus[taskId] = videoId to "PENDING"
-                pollTask(taskId, videoId, client, tasksStatus, downloadsDir)
-              } catch (e: Exception) {
-                tasksStatus["error_$videoId"] = videoId to "Erro ao submeter: ${e.message}"
-              }
-            }
+    BasicTextField(
+      value = input,
+      onValueChange = { input = it },
+      modifier = Modifier.fillMaxWidth().height(100.dp)
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Button(onClick = {
+      val ids = input.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+      tasks.value = ids.map { Task(it) }
+      ids.forEach { id ->
+        CoroutineScope(Dispatchers.IO).launch {
+          try {
+            client.post("$server/api/request/$id")
+          } catch (_: Exception) {
           }
-          inputs.clear()
         }
-      },
-      enabled = inputs.isNotEmpty()
-    ) {
-      Text("Converter")
+      }
+    }) { Text("Enviar IDs") }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    tasks.value.forEach { task ->
+      Text("${task.id} → ${task.status}" + (task.error?.let { " [Erro: $it]" } ?: ""))
     }
 
-    Spacer(Modifier.height(12.dp))
-
-    if (tasksStatus.isNotEmpty()) {
-      LazyColumn {
-        item { Text("Status das tarefas:") }
-        items(tasksStatus.toList()) { (taskId, pair) ->
-          val (videoId, status) = pair
-          Text("$videoId : $status")
+    LaunchedEffect(tasks) {
+      while (true) {
+        tasks.value = tasks.value.map { task ->
+          if (task.status in listOf("SUCCESS", "FAILURE", "EXPIRED")) return@map task
+          val resp = client.get("$server/api/status/${task.id}").body<Task>()
+          val status = resp.status
+          if (status == "SUCCESS") {
+            val bytes = client.get("$server/api/download/${task.id}").body<ByteArray>()
+            File("downloads/${task.id}.zip").writeBytes(bytes)
+          }
+          task.copy(status = status)
         }
+        delay(2000)
       }
     }
   }
 }
-
-suspend fun pollTask(
-  taskId: String,
-  videoId: String,
-  client: HttpClient,
-  tasksStatus: MutableMap<String, Pair<String, String>>,
-  downloadsDir: File
-) {
-  while (true) {
-    delay(3000) // 3 segundos
-    try {
-      val statusResponse: TaskStatusResponse = client.get("http://localhost:8000/api/task/status/$taskId").body()
-      val status = statusResponse.status
-      tasksStatus[taskId] = videoId to status
-      when (status) {
-        "SUCCESS" -> {
-          // Baixar arquivo
-          val httpResponse: HttpResponse = client.get("http://localhost:8000/api/task/result/$taskId") {
-            timeout { requestTimeoutMillis = 60_000 }
-          }
-          if (httpResponse.status == HttpStatusCode.OK) {
-            val bytes = httpResponse.body<ByteArray>()
-            File(downloadsDir, "$videoId.zip").writeBytes(bytes)
-            tasksStatus[taskId] = videoId to "Concluído e baixado"
-          } else {
-            tasksStatus[taskId] = videoId to "Erro no download: HTTP ${httpResponse.status.value}"
-          }
-          break
-        }
-
-        "FAILURE", "REVOKED" -> {
-          tasksStatus[taskId] = videoId to "Falha na tarefa"
-          break
-        }
-        // continua aguardando
-      }
-    } catch (e: Exception) {
-      tasksStatus[taskId] = videoId to "Erro ao consultar status: ${e.message}"
-      break
-    }
-  }
-}
-
-@Serializable
-data class SubmitResponse(val task_id: String)
-
-@Serializable
-data class TaskStatusResponse(val task_id: String, val status: String, val result: String?, val error: String?)
 
 fun main() = application {
-  val httpClient = HttpClient(CIO) {
-    expectSuccess = false
-
-    install(ContentNegotiation) {
-      json()
-    }
-
-    install(HttpTimeout) {
-      requestTimeoutMillis = 120_000L
-    }
-  }
-  Window(onCloseRequest = ::exitApplication) {
-    App(httpClient)
+  Window(onCloseRequest = ::exitApplication, title = "Video Processor") {
+    App()
   }
 }
-
-/*
-celery -A celery_app.celery_app worker --loglevel=info
-
-uvicorn main:app --reload
- */
-
-/*
-Como viu, meu projeto python usa Spleeter, que por sua vez usa os binários FFMPEG. Eu tenho esses binários no meu windows adicionados no meu PATH.
-
-Sabendo dessa organização, é possível eu criar um app desktop pra eu rodar diretamente com 1 clique e usar? Não quero/posso hospedar a API python externamente. Quero criar algo distribuível para que eu possa usar mesmo num computador que acabou de ser formatado. Me diga exatamente o que devo fazer para ter isso. Pensei em deixar os binários na pasta do projeto, mas não sei se é uma boa opção. Também não sei o que fazer em relação à merda do python. Aceito sugestões com docker se for melhor, se não for, me diga a melhor opção do mundo.
- */

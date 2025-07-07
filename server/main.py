@@ -1,55 +1,44 @@
-# server/main.py
-
+# main.py
 import os
-
-from celery.result import AsyncResult
-from fastapi import FastAPI, HTTPException
-from fastapi import Path
-from fastapi.responses import JSONResponse, FileResponse
-
-from celery_app import celery_app  # celery instance import
-from lib import cleanup_path
-from tasks import process_video_task  # celery task import
-from tasks import celery_app
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
+from queue_manager import queue_task, get_task_status, start_background_workers, TaskStatus
+from lib import cleanup_path, BASE_TEMP_DIR
 
 app = FastAPI()
+start_background_workers()
 
+@app.post("/api/request/{video_id}")
+def submit_task(video_id: str):
+    task = queue_task(video_id)
+    return {"video_id": video_id, "status": task["status"]}
 
-@app.get("/api/health")
-def health():
-    return "Hello from FastAPI!"
-
-
-@app.post('/api/video/id/{video_id:path}')
-def submit_video(video_id: str = Path(...)):
-    task = process_video_task.delay(video_id)
-    return JSONResponse({"task_id": task.id})
-
-
-@app.get('/api/task/status/{task_id}')
-def get_task_status(task_id: str):
-    task_result = AsyncResult(task_id, app=celery_app)
-    response = {
-        "task_id": task_id,
-        "status": task_result.status,
-        "result": task_result.result if task_result.successful() else None,
-        "error": str(task_result.result) if task_result.failed() else None,
+@app.get("/api/status/{video_id}")
+def check_status(video_id: str):
+    task = get_task_status(video_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {
+        "video_id": video_id,
+        "status": task["status"],
+        "error": task["error"]
     }
-    return JSONResponse(response)
 
+@app.get("/api/download/{video_id}")
+def download_result(video_id: str, background_tasks: BackgroundTasks):
+    task = get_task_status(video_id)
+    if not task or task["status"] != TaskStatus.SUCCESS:
+        raise HTTPException(status_code=404, detail="Result not available")
 
-@app.get('/api/task/result/{task_id}')
-def download_result(task_id: str):
-    task_result = AsyncResult(task_id, app=celery_app)
-    if not task_result.successful():
-        raise HTTPException(status_code=404, detail="Task result not available")
+    result_path = task["result_path"]
+    if not result_path or not os.path.exists(result_path):
+        raise HTTPException(status_code=500, detail="Result file missing")
 
-    zip_path = task_result.result
-    if not zip_path or not os.path.isfile(zip_path):
-        raise HTTPException(status_code=404, detail="File not found")
+    base_dir = f"{BASE_TEMP_DIR}/{video_id}"
+    background_tasks.add_task(cleanup_path, base_dir)
 
-    response = FileResponse(zip_path, media_type='application/zip', filename=os.path.basename(zip_path))
-
-    # Clean up after sending file
-    cleanup_path(os.path.dirname(zip_path))
-    return response
+    return FileResponse(
+        path=result_path,
+        filename=f"{video_id}.zip",
+        media_type="application/zip"
+    )
