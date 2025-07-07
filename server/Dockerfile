@@ -6,6 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
+# Incluindo FFMPEG na imagem; necessário para lib Spleeter do python
+RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+
 # Diretório de trabalho
 WORKDIR /app
 
