@@ -1,0 +1,13 @@
+FROM gradle:8.4.0-jdk17 AS builder
+
+WORKDIR /build
+
+COPY desktop_client /build/desktop_client
+WORKDIR /build/desktop_client
+
+RUN chmod +x ./gradlew && \
+    ./gradlew packageReleaseUberJarForCurrentOS --no-daemon
+
+FROM alpine:latest
+WORKDIR /out
+COPY --from=builder /build/desktop_client/app/build/compose/jars/FLBTClient-windows-x64-1.0.0-release.jar /out/client.jar
