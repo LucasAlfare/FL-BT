@@ -42,13 +42,13 @@ After starting the server:
 
 ## 🚀 How to Run
 
-Is possible to run the python FastAPI by itself after installing the [`requirements.txt`](server/requirements.txt). But for this, you need to get `FFMPEG` manually for your operating system, because Spleeter uses it. To skip this, read Docker instructions below. 
+Is possible to run only the python FastAPI by itself after installing the [`requirements.txt`](server/requirements.txt). But for this, you need to get `FFMPEG` manually for your operating system, because Spleeter uses it. To skip this, read Docker instructions below. 
 
 ### Requirements
-- Windows
 - [Docker](https://www.docker.com/)
 
 If you want to use with the Docker and with the simple client you'll need to build the client to it become accessible from the starter script:
+- Windows OS
 - [Java JDK 17+](https://adoptium.net/)
 - [Gradle](https://gradle.org/) (or use the wrapper)
 
@@ -106,4 +106,6 @@ If using the simple client, just paste YouTube video IDs, one per line, at the t
 ## 💡 Future Ideas
 
 - Improve deploy/distribution process;
-- Make more possible to run externally (VPS, etc).
+- Make more possible to run externally (VPS, etc);
+- Implement a Web-Client;
+- Implement combinator of the extracted tracks.
