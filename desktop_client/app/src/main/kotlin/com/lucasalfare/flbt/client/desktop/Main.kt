@@ -5,6 +5,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.Button
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -23,13 +24,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.file.Paths
+import javax.swing.JFileChooser
 
-// Client.kt
 val client = HttpClient(CIO) {
   install(ContentNegotiation) {
-    json(Json {
-      isLenient = true
-    })
+    json(Json { isLenient = true })
   }
 }
 const val server = "http://localhost:8000"
@@ -41,13 +41,34 @@ data class Task(
   var error: String? = null
 )
 
+fun getDefaultDownloadDir(): String {
+  val home = System.getProperty("user.home")
+  return Paths.get(home, "Downloads").toString()
+}
 
 @Composable
 fun App() {
   var input by remember { mutableStateOf("") }
   val tasks = remember { mutableStateOf(listOf<Task>()) }
+  var downloadPath by remember { mutableStateOf(getDefaultDownloadDir()) }
 
   Column(modifier = Modifier.padding(16.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Text("Destino:", modifier = Modifier.padding(end = 8.dp))
+      Text(downloadPath, modifier = Modifier.weight(1f))
+      Button(onClick = {
+        val chooser = JFileChooser().apply {
+          fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+        }
+        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+          downloadPath = chooser.selectedFile.absolutePath
+        }
+      }) {
+        Text("Selecionar pasta")
+      }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
     BasicTextField(
       value = input,
       onValueChange = { input = it },
@@ -80,7 +101,7 @@ fun App() {
           val status = resp.status
           if (status == "SUCCESS") {
             val bytes = client.get("$server/api/download/${task.id}").body<ByteArray>()
-            File("downloads/${task.id}.zip").writeBytes(bytes)
+            File("$downloadPath/${task.id}.zip").writeBytes(bytes)
           }
           task.copy(status = status)
         }

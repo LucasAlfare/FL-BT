@@ -1,13 +1,9 @@
 @echo off
 SETLOCAL
 
-:: Nome da imagem
 SET IMAGE_NAME=backingtracker_server
-
-:: Porta da API
 SET PORT=8000
 
-:: Verifica se a imagem já existe
 docker image inspect %IMAGE_NAME% >nul 2>&1
 IF ERRORLEVEL 1 (
     echo [INFO] Criando imagem Docker...
@@ -15,12 +11,15 @@ IF ERRORLEVEL 1 (
 )
 
 echo [INFO] Iniciando servidor backend...
-start /B docker run --rm -p %PORT%:8000 %IMAGE_NAME%
+REM storing container ID to be properly closed later
+FOR /F "usebackq" %%c IN (`docker run -d -p %PORT%:8000 %IMAGE_NAME%`) DO SET CONTAINER_ID=%%c
 
-:: Aguarda o backend subir (básico, 5s)
 timeout /T 5 /NOBREAK >nul
 
 echo [INFO] Iniciando cliente...
-start java -jar desktop_client/app/build/compose/jars/FLBTClient-windows-x64-1.0.0-release.jar
+java -jar desktop_client/app/build/compose/jars/FLBTClient-windows-x64-1.0.0-release.jar
+
+echo [INFO] Cliente fechado, parando container...
+docker stop %CONTAINER_ID%
 
 ENDLOCAL
