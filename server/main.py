@@ -4,14 +4,28 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from queue_manager import queue_task, get_task_status, start_background_workers, TaskStatus
 from lib import cleanup_path, BASE_TEMP_DIR
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/app", StaticFiles(directory="frontend/dist", html=True), name="frontend")
+
 start_background_workers()
+
 
 @app.post("/api/request/{video_id}")
 def submit_task(video_id: str):
     task = queue_task(video_id)
     return {"video_id": video_id, "status": task["status"]}
+
 
 @app.get("/api/status/{video_id}")
 def check_status(video_id: str):
@@ -23,6 +37,7 @@ def check_status(video_id: str):
         "status": task["status"],
         "error": task["error"]
     }
+
 
 @app.get("/api/download/{video_id}")
 def download_result(video_id: str, background_tasks: BackgroundTasks):
