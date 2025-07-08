@@ -73,9 +73,11 @@ This JAR will be used by the `start.bat` script.
 
 ---
 
-## Using the project
+## 📠 Using the project
 
 If using the simple client, just paste YouTube video IDs, one per line, at the top text area, then click the button to request processing for all IDs. If using only API, look API reference.
+
+---
 
 ## ⚠️ Limitations
 
@@ -101,7 +103,7 @@ If using the simple client, just paste YouTube video IDs, one per line, at the t
 
 ---
 
-## Ideas
+## 💡 Future Ideas
 
 - Improve deploy/distribution process;
 - Make more possible to run externally (VPS, etc).
