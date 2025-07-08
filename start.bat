@@ -1,24 +1,18 @@
 @echo off
 SETLOCAL
 
-SET IMAGE_NAME=backingtracker_server
-SET PORT=8000
-
-docker image inspect %IMAGE_NAME% >nul 2>&1
-IF ERRORLEVEL 1 (
-    echo [INFO] Criando imagem Docker...
-    docker build -t %IMAGE_NAME% -f Dockerfile .
-)
-
-echo [INFO] Iniciando servidor backend...
-FOR /F "usebackq" %%c IN (`docker run -d -p %PORT%:8000 %IMAGE_NAME%`) DO SET CONTAINER_ID=%%c
+echo [INFO] Subindo container do backend...
+docker-compose up -d --build
 
 timeout /T 5 /NOBREAK >nul
 
-echo [INFO] Iniciando cliente com .jar gerado pelo build Docker...
-java -jar desktop_client/app/build/compose/jars/FLBTClient-windows-x64-1.0.0-release.jar
+echo [INFO] Copiando .jar do container para host...
+docker cp backingtracker-server-container:/backingtracker/client.jar client.jar
+
+echo [INFO] Iniciando cliente...
+java -jar client.jar
 
 echo [INFO] Cliente fechado, parando container...
-docker stop %CONTAINER_ID%
+docker-compose down
 
 ENDLOCAL
