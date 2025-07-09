@@ -1,8 +1,41 @@
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  api:
+    build: .
     ports:
       - "8000:8000"
-    restart: unless-stopped
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    command:
+      [
+        "/app/.venv/bin/celery",
+        "-A",
+        "server.celery_worker",
+        "worker",
+        "--loglevel=info",
+        "--concurrency=4",
+        "--prefetch-multiplier=1"
+      ]
+    environment:
+      - PYTHONPATH=/app
+    depends_on:
+      - redis
+    mem_limit: 4g
+    cpus: 2.0
+
+  redis:
+    image: redis:8.0.0-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5

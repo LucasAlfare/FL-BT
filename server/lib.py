@@ -8,8 +8,6 @@ from spleeter.separator import Separator
 
 BASE_TEMP_DIR = "temp"
 
-separator = Separator(params_descriptor='spleeter:4stems', multiprocess=True)
-
 
 def download_youtube_audio(url: str, output_path: str) -> str | None:
     try:
@@ -23,6 +21,7 @@ def download_youtube_audio(url: str, output_path: str) -> str | None:
 
 
 def separate_4stems(input_path: str, output_path: str, codec: Codec = Codec.MP3) -> bool:
+    separator = Separator(params_descriptor='spleeter:4stems', multiprocess=True)
     try:
         if not os.path.exists(input_path):
             return False
@@ -51,7 +50,7 @@ def cleanup_path(path: str) -> None:
         os.remove(path)
 
 
-def single_pipeline(video_id: str):
+def single_pipeline(video_id: str) -> str:
     base_dir = f'{BASE_TEMP_DIR}/{video_id}'
     download_dir = f'{base_dir}/download'
     separate_dir = f'{base_dir}/separated'
@@ -70,3 +69,5 @@ def single_pipeline(video_id: str):
         raise RuntimeError("Separation failed")
 
     create_zip_from_folder(separate_dir, zip_path)
+
+    return zip_path
