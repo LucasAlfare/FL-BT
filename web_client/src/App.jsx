@@ -17,7 +17,7 @@ export default function App() {
 
     for (const id of ids) {
       try {
-        const res = await fetch(`${SERVER}/api/request/${id}`, {
+        const res = await fetch(`${SERVER}/api/submit/${id}`, {
           method: 'POST'
         })
 

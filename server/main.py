@@ -27,8 +27,8 @@ async def root():
     return {"message": "We are healthy"}
 
 
-# curl.exe -X POST http://localhost:8000/api/request/vjVkXlxsO8Q
-@app.post("/api/request/{video_id}")
+# curl.exe -X POST http://localhost:8000/api/submit/vjVkXlxsO8Q
+@app.post("/api/submit/{video_id}")
 def submit_task(video_id: str):
     try:
         task = heavy_processing_entrypoint.apply_async(args=[video_id])

@@ -30,7 +30,7 @@ def separate_4stems(input_path: str, output_path: str, codec: Codec = Codec.MP3)
         if not os.path.exists(input_path):
             return False
         os.makedirs(output_path, exist_ok=True)
-        # we will perform only 1 separation per time
+        # we will perform only 1 separation per time per worker
         separator.separate_to_file(input_path, output_path, codec=codec, synchronous=True)
         return True
     except Exception as e:
