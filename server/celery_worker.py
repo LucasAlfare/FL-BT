@@ -10,6 +10,7 @@ celery_app = Celery(
 
 
 @celery_app.task
-def heavy_processing_entrypoint(job_id: str) -> str:
-    print(f"Starting the job {job_id}...")
-    return single_pipeline(job_id)
+def heavy_processing_entrypoint(video_id: str) -> dict[str, str]:
+    print(f"Starting the job {video_id}...")
+    zip_path = single_pipeline(video_id)
+    return {"video_id": video_id, "zip_path": zip_path}

@@ -1004,7 +1004,6 @@ dependencies = [
     { name = "pytubefix" },
     { name = "redis" },
     { name = "spleeter" },
-    { name = "tensorflow-io-gcs-filesystem" },
     { name = "uvicorn" },
 ]
 
@@ -1012,11 +1011,10 @@ dependencies = [
 requires-dist = [
     { name = "celery", specifier = ">=5.1.2" },
     { name = "fastapi", specifier = ">=0.116.0" },
-    { name = "numpy", specifier = "<2" },
+    { name = "numpy" },
     { name = "pytubefix", specifier = ">=9.3.0" },
     { name = "redis", specifier = ">=6.2.0" },
     { name = "spleeter", specifier = ">=2.4.0" },
-    { name = "tensorflow-io-gcs-filesystem", specifier = "==0.31.0" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 

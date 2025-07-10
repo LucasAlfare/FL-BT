@@ -6,8 +6,8 @@ services:
     depends_on:
       - redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 60s
       timeout: 5s
       retries: 3
 
@@ -16,18 +16,17 @@ services:
     command:
       [
         "/app/.venv/bin/celery",
-        "-A",
-        "server.celery_worker",
+        "-A", "server.celery_worker",
         "worker",
         "--loglevel=info",
-        "--concurrency=4",
-        "--prefetch-multiplier=1"
+        "--concurrency=1",
+        "--pool=solo"
       ]
     environment:
       - PYTHONPATH=/app
     depends_on:
       - redis
-    mem_limit: 4g
+    mem_limit: 6g # I caught worker using ~544145408; 6g should be OK, I think
     cpus: 2.0
 
   redis:
@@ -35,7 +34,7 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 3s
       timeout: 3s
       retries: 5

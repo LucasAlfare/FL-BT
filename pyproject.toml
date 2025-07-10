@@ -12,6 +12,6 @@ dependencies = [
     "pytubefix>=9.3.0",
     "redis>=6.2.0",
     "spleeter>=2.4.0",
-#    "tensorflow-io-gcs-filesystem==0.31.0", # needed for windows dev
+#    "tensorflow-io-gcs-filesystem==0.31.0", # needed for windows dev?
     "uvicorn>=0.35.0",
 ]

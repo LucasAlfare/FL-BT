@@ -1,4 +1,6 @@
 FROM node:20 AS frontend-builder
+LABEL authors="Francisco Lucas"
+
 WORKDIR /web_client
 COPY web_client/package.json web_client/package-lock.json ./
 RUN npm ci
@@ -7,9 +9,6 @@ RUN npm run build
 
 FROM python:3.10-slim AS backend
 
-LABEL authors="Francisco Lucas"
-
-# Declaring some ENV variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 # Setting large ammount of timeout.
@@ -32,7 +31,9 @@ COPY uv.lock /app
 COPY server /app/server
 
 # Install the dependencies (deterministic based on the lock file)
-RUN uv sync --frozen --no-cache
+RUN uv sync --frozen
+
+# TODO: manually force download pretrained_models in this stage
 
 COPY --from=frontend-builder /web_client/dist ./frontend/dist
 RUN ln -s /app/.venv/bin/celery /usr/local/bin/celery
