@@ -7,7 +7,8 @@ from spleeter.audio import Codec
 from spleeter.separator import Separator
 import tensorflow as tf
 
-BASE_TEMP_DIR = "temp"
+BASE_TEMP_DIR = os.path.abspath("temp")
+separator = Separator(params_descriptor='spleeter:4stems', multiprocess=False)
 
 tf.config.threading.set_intra_op_parallelism_threads(1)
 tf.config.threading.set_inter_op_parallelism_threads(1)
@@ -25,7 +26,6 @@ def download_youtube_audio(url: str, output_path: str) -> str | None:
 
 
 def separate_4stems(input_path: str, output_path: str, codec: Codec = Codec.MP3) -> bool:
-    separator = Separator(params_descriptor='spleeter:4stems', multiprocess=False)
     try:
         if not os.path.exists(input_path):
             return False

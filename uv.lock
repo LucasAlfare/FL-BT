@@ -1011,7 +1011,7 @@ dependencies = [
 requires-dist = [
     { name = "celery", specifier = ">=5.1.2" },
     { name = "fastapi", specifier = ">=0.116.0" },
-    { name = "numpy" },
+    { name = "numpy", specifier = "<2" },
     { name = "pytubefix", specifier = ">=9.3.0" },
     { name = "redis", specifier = ">=6.2.0" },
     { name = "spleeter", specifier = ">=2.4.0" },

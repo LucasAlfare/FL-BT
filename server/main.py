@@ -37,7 +37,7 @@ def submit_task(video_id: str):
     return {"video_id": video_id, "task_id": task.id, "status": "PENDING"}
 
 
-# curl.exe http://localhost:8000/api/status/...
+# curl.exe http://localhost:8000/api/status/{task_id}
 @app.get("/api/status/{task_id}")
 def check_status(task_id: str):
     task_result = AsyncResult(task_id, app=heavy_processing_entrypoint.app)
@@ -48,7 +48,7 @@ def check_status(task_id: str):
     }
 
 
-# curl.exe http://localhost:8000/api/download/...
+# curl.exe http://localhost:8000/api/download/{task_id} --output stems.zip
 # TODO: still has bugs in directories. I must take the proper zip dir.
 @app.get("/api/download/{task_id}")
 def download_result(task_id: str, background_tasks: BackgroundTasks):
@@ -63,9 +63,9 @@ def download_result(task_id: str, background_tasks: BackgroundTasks):
     zip_path = result_data["zip_path"]
     background_tasks.add_task(cleanup_path, os.path.dirname(zip_path))
 
-    filename = os.path.basename(zip_path)
+    print(f'responding the file of the path [{zip_path}]...')
+
     return FileResponse(
-        path=zip_path,
-        filename=filename,
+        path=os.path.abspath(zip_path),
         media_type="application/zip"
     )

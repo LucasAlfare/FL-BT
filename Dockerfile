@@ -33,7 +33,7 @@ COPY server /app/server
 # Install the dependencies (deterministic based on the lock file)
 RUN uv sync --frozen
 
-# TODO: manually force download pretrained_models in this stage
+RUN python3 -c "from spleeter.separator import Separator; Separator('spleeter:4stems')"
 
 COPY --from=frontend-builder /web_client/dist ./frontend/dist
 RUN ln -s /app/.venv/bin/celery /usr/local/bin/celery
