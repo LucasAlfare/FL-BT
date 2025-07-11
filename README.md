@@ -9,11 +9,15 @@
 
 > _"FL-BT"_ stands for _"Francisco Lucas BackingTracker"_
 
-This project is a wrapper for the Spleeter tool. It retrieves audio from one or more YouTube videos and separates them into stems. Each separation job returns a result to the user. In short, the tool receives YouTube video IDs as _input_ and outputs zip files containing the isolated audio tracks/stems.
+This project is a wrapper for the Spleeter tool. It retrieves audio from one or more YouTube videos and separates them into stems.
+
+> Note: stems/tracks are isolated instrument tracks. Since audio data of wave formats (.wav raw/.mp3 compressed) are not made of digital signals, separating tracks of instruments/vocals is not trivial.
+
+Each separation job of this application returns a result to the user. In short, the tool receives YouTube video IDs as _input_ and outputs zip files containing the isolated audio tracks/stems.
 
 Originally built as a pure Python command-line script, it became useful to expose it via an HTTP web API. Using Docker, it is now suitable for various environments.
 
-As this tool requires considerable memory and CPU, it is currently intended for localhost use only. It can run on cloud VPSs, but the target machine should have at least 6GB RAM and multiple CPU cores to handle requests. More implementation details are provided below.
+As this tool requires considerable memory and CPU, it is currently intended for localhost use only. It can run on cloud VPSs, but the target machine should have at least 12GB RAM and multiple CPU cores to handle background tasks. More implementation details are provided below.
 
 As a local personal service, it's ideal for musicians who want to extract stems from songs without relying on paid online services. In the future, we plan to add options such as combining multiple stems into a single track, among others.
 
