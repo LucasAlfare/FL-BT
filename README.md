@@ -81,7 +81,7 @@ You can also use the API via terminal with curl or any HTTP client:
 
   * TODO: add usage examples
 
-The web interface (`/app`) handles these endpoints for you.
+If you don't want to deal with curl endpointing, the web UI page at `/app` handles then for you.
 
 > Note 1: Spleeter uses FFMPEG and pretrained model binaries, so container size is large.
 
