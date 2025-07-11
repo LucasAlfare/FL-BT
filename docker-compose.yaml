@@ -28,8 +28,14 @@ services:
       - PYTHONPATH=/app
     depends_on:
       - redis
-    mem_limit: 7g # I caught worker using ~544145408; 7g should be OK, I think
+    # tensorflow/keras is probably making some kind of
+    # memory leak between process, or the memory is not
+    # being properly deallocated. So the most handful
+    # solution is to increase mem_limit for a high value
+    # and avoid request too many songs to the Celery queue.
+    mem_limit: 14g
     cpus: 2.0
+    oom_kill_disable: false
     volumes:
       - shared-temp:/app/temp
 

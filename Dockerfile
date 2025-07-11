@@ -33,7 +33,7 @@ COPY server /app/server
 # Install the dependencies (deterministic based on the lock file)
 RUN uv sync --frozen
 
-RUN python3 -c "from spleeter.separator import Separator; Separator('spleeter:4stems')"
+# RUN /app/.venv/bin/python -c "from spleeter.model.provider.github import GithubModelProvider; GithubModelProvider('https://github.com','Deezer/spleeter','v1.4.0').download('4stems','./')"
 
 COPY --from=frontend-builder /web_client/dist ./frontend/dist
 RUN ln -s /app/.venv/bin/celery /usr/local/bin/celery
