@@ -16,6 +16,16 @@ BASE_TEMP_DIR = os.environ.get("BASE_TEMP_DIR", "/app/temp")
 
 
 def download_youtube_audio(url: str, output_path: str) -> str | None:
+    """
+    Downloads audio from a YouTube URL using pytubefix.
+
+    Args:
+        url (str): YouTube video URL.
+        output_path (str): Path to store downloaded file.
+
+    Returns:
+        str | None: Path to the downloaded file or None if failed.
+    """
     try:
         os.makedirs(output_path, exist_ok=True)
         yt = YouTube(url)
@@ -28,6 +38,18 @@ def download_youtube_audio(url: str, output_path: str) -> str | None:
 
 
 def get_audio_duration(path: str) -> float:
+    """
+    Gets the duration of an audio file using ffprobe.
+
+    Args:
+        path (str): Path to the audio file.
+
+    Returns:
+        float: Duration in seconds.
+
+    Raises:
+        RuntimeError: If ffprobe fails.
+    """
     try:
         result = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -44,6 +66,17 @@ def get_audio_duration(path: str) -> float:
 
 def separate_stems_chunked(input_path: str, output_path: str,
                            codec: Codec = Codec.MP3) -> bool:
+    """
+    Separates audio into 4 stems (vocals, drums, bass, other) using Spleeter in chunks.
+
+    Args:
+        input_path (str): Path to the input audio.
+        output_path (str): Destination directory.
+        codec (Codec): Output audio codec.
+
+    Returns:
+        bool: True if successful, False otherwise.
+    """
     try:
         from spleeter.separator import Separator
         import tensorflow as tf
@@ -113,6 +146,13 @@ def separate_stems_chunked(input_path: str, output_path: str,
 
 
 def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
+    """
+    Creates a ZIP file from a given folder.
+
+    Args:
+        folder_path (str): Source folder path.
+        zip_path (str): Destination ZIP file path.
+    """
     logger.info(f"Creating zip file at: {zip_path}")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
@@ -123,6 +163,12 @@ def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
 
 
 def cleanup_path(path: str) -> None:
+    """
+    Deletes a file or folder from the filesystem.
+
+    Args:
+        path (str): Path to delete.
+    """
     logger.info(f"Cleaning up path: {path}")
     if os.path.isdir(path):
         shutil.rmtree(path, ignore_errors=True)
@@ -131,6 +177,18 @@ def cleanup_path(path: str) -> None:
 
 
 def single_pipeline(video_id: str) -> str:
+    """
+    Full processing pipeline: download, separate stems, zip.
+
+    Args:
+        video_id (str): YouTube video ID.
+
+    Returns:
+        str: Path to resulting ZIP file.
+
+    Raises:
+        RuntimeError: On any stage failure.
+    """
     process = psutil.Process()
     logger.info(f"Starting pipeline for video {video_id}")
     logger.debug(f"Memory before job: {process.memory_info().rss / 1024 / 1024:.2f} MB")
