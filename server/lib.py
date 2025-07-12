@@ -1,16 +1,18 @@
+# lib.py
 import os
 import shutil
+import tempfile
+import subprocess
 import zipfile
-from pytubefix import YouTube, Stream
-from spleeter.audio import Codec
+from math import ceil
+
 import psutil
+from pytubefix import YouTube, Stream
+from spleeter.separator import Separator
+from spleeter.audio import Codec
+import tensorflow as tf
 
 BASE_TEMP_DIR = os.path.abspath("temp")
-"""
-Defines the base directory for temporary files.
-Using an absolute path ensures consistent file handling regardless of
-where the script is executed.
-"""
 
 
 def download_youtube_audio(url: str, output_path: str) -> str | None:
@@ -59,6 +61,100 @@ def separate_4stems(input_path: str, output_path: str, codec: Codec = Codec.MP3)
 
     except Exception as e:
         print(f"[ERROR] Separation failed: {e}")
+        return False
+
+
+def get_audio_duration(path: str) -> float:
+    """
+    Retorna a duração (em segundos) de um arquivo de áudio via ffprobe.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-show_entries",
+                "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True
+        )
+        return float(result.stdout.strip())
+    except Exception as e:
+        raise RuntimeError(f"Falha ao obter duração do áudio: {e}")
+
+
+def separate_stems_chunked(input_path: str, output_path: str,
+                           codec: Codec = Codec.MP3) -> bool:
+    """
+    Executa separação 4-stem por partes usando offset/duration.
+    Junta os stems ao final com ffmpeg concat.
+
+    Args:
+        input_path: caminho do áudio original.
+        output_path: pasta final para os stems.
+        chunk_duration: duração em segundos de cada pedaço.
+        codec: formato final de saída (ex: Codec.MP3).
+
+    Returns:
+        True se sucesso, False se erro.
+    """
+    try:
+        tf.config.threading.set_intra_op_parallelism_threads(1)
+        tf.config.threading.set_inter_op_parallelism_threads(1)
+
+        total_duration = get_audio_duration(input_path)
+        chunk_duration = min(45, max(10, int(total_duration / ceil(total_duration / 45))))
+        os.makedirs(output_path, exist_ok=True)
+        tmp_base = tempfile.mkdtemp()
+
+        separator = Separator('spleeter:4stems', multiprocess=False)
+
+        chunk_count = int(total_duration // chunk_duration) + 1
+        stems = ['vocals', 'drums', 'bass', 'other']
+        chunk_outputs = {stem: [] for stem in stems}
+
+        for i in range(chunk_count):
+            offset = i * chunk_duration
+            tmp_out = os.path.join(tmp_base, f'chunk_{i}')
+            os.makedirs(tmp_out, exist_ok=True)
+
+            separator.separate_to_file(
+                audio_descriptor=input_path,
+                destination=tmp_out,
+                offset=offset,
+                duration=chunk_duration,
+                codec=codec,
+                synchronous=True
+            )
+
+            for stem in stems:
+                stem_path = os.path.join(
+                    tmp_out,
+                    os.path.basename(input_path).split('.')[0],
+                    f"{stem}.{codec.value}"
+                )
+                if os.path.exists(stem_path):
+                    chunk_outputs[stem].append(stem_path)
+
+        for stem in stems:
+            concat_list = os.path.join(tmp_base, f"{stem}_concat.txt")
+            with open(concat_list, "w") as f:
+                for path in chunk_outputs[stem]:
+                    f.write(f"file '{path}'\n")
+
+            final_path = os.path.join(output_path, f"{stem}.{codec.value}")
+            subprocess.run([
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                "-i", concat_list, "-c", "copy", final_path
+            ], check=True)
+
+        shutil.rmtree(tmp_base, ignore_errors=True)
+        del separator
+        return True
+
+    except Exception as e:
+        print(f"[ERROR] Chunked separation failed: {e}")
         return False
 
 
@@ -123,7 +219,7 @@ def single_pipeline(video_id: str) -> str:
     if not downloaded_path:
         raise RuntimeError("Download failed")
 
-    success = separate_4stems(downloaded_path, separate_dir)
+    success = separate_stems_chunked(downloaded_path, separate_dir)
     if not success:
         raise RuntimeError("Separation failed")
 

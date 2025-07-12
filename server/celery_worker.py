@@ -1,3 +1,4 @@
+# celery_worker.py
 from celery import Celery
 from server.lib import single_pipeline
 
