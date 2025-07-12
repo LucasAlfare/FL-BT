@@ -1,8 +1,8 @@
 # pyproject.toml
 [project]
-name = "uvpythonstudy"
-version = "0.1.0"
-description = "Add your description here"
+name = "fl-bt"
+version = "1.0"
+description = "Web API for extracting audio stems from YouTube using Spleeter. Ideal for quick backing track generation. Powered by FastAPI, Celery, and pytubefix."
 requires-python = "==3.10.*"
 # leaving the dependencies versions as UV has set
 dependencies = [
@@ -16,6 +16,3 @@ dependencies = [
     #    "tensorflow-io-gcs-filesystem==0.31.0", # needed for windows dev?
     "uvicorn>=0.35.0",
 ]
-
-[dependency-groups]
-dev = []
