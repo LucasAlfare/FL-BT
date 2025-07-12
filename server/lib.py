@@ -8,25 +8,16 @@ from math import ceil
 
 import psutil
 from pytubefix import YouTube, Stream
-from spleeter.separator import Separator
 from spleeter.audio import Codec
-import tensorflow as tf
 
-BASE_TEMP_DIR = os.path.abspath("temp")
+BASE_TEMP_DIR = os.environ.get("BASE_TEMP_DIR", "/app/temp")
 
 
 def download_youtube_audio(url: str, output_path: str) -> str | None:
-    """
-    Downloads the audio-only stream from a YouTube video URL.
-
-    - Creates output directory if missing.
-    - Uses pytubefix to fetch YouTube streams, prioritizing audio-only.
-    - Returns the local file path of the downloaded audio or None on failure.
-    """
     try:
         os.makedirs(output_path, exist_ok=True)
         yt = YouTube(url)
-        stream: Stream = yt.streams.get_audio_only()  # Get only audio stream for minimal data
+        stream: Stream = yt.streams.get_audio_only()
         return stream.download(output_path)
     except Exception as e:
         print(f"[ERROR] Download failed for {url}: {e}")
@@ -34,15 +25,10 @@ def download_youtube_audio(url: str, output_path: str) -> str | None:
 
 
 def get_audio_duration(path: str) -> float:
-    """
-    Retorna a duração (em segundos) de um arquivo de áudio via ffprobe.
-    """
     try:
         result = subprocess.run(
-            [
-                "ffprobe", "-v", "error", "-show_entries",
-                "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path
-            ],
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
@@ -55,20 +41,10 @@ def get_audio_duration(path: str) -> float:
 
 def separate_stems_chunked(input_path: str, output_path: str,
                            codec: Codec = Codec.MP3) -> bool:
-    """
-    Executa separação 4-stem por partes usando offset/duration.
-    Junta os stems ao final com ffmpeg concat.
-
-    Args:
-        input_path: caminho do áudio original.
-        output_path: pasta final para os stems.
-        chunk_duration: duração em segundos de cada pedaço.
-        codec: formato final de saída (ex: Codec.MP3).
-
-    Returns:
-        True se sucesso, False se erro.
-    """
     try:
+        from spleeter.separator import Separator
+        import tensorflow as tf
+
         tf.config.threading.set_intra_op_parallelism_threads(1)
         tf.config.threading.set_inter_op_parallelism_threads(1)
 
@@ -78,7 +54,6 @@ def separate_stems_chunked(input_path: str, output_path: str,
         tmp_base = tempfile.mkdtemp()
 
         separator = Separator('spleeter:4stems', multiprocess=False)
-
         chunk_count = int(total_duration // chunk_duration) + 1
         stems = ['vocals', 'drums', 'bass', 'other']
         chunk_outputs = {stem: [] for stem in stems}
@@ -128,13 +103,6 @@ def separate_stems_chunked(input_path: str, output_path: str,
 
 
 def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
-    """
-    Compresses the entire folder into a ZIP archive.
-
-    - Walks folder recursively to include all files.
-    - Writes files preserving relative paths for consistent extraction.
-    - Uses ZIP_DEFLATED compression for balance of speed and size.
-    """
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
             for file in files:
@@ -144,13 +112,6 @@ def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
 
 
 def cleanup_path(path: str) -> None:
-    """
-    Removes a file or directory at the given path.
-
-    - Recursively deletes directories with all contents.
-    - Deletes single files.
-    - Ignores errors to avoid failure if file/dir is missing.
-    """
     if os.path.isdir(path):
         shutil.rmtree(path, ignore_errors=True)
     elif os.path.isfile(path):
@@ -158,27 +119,13 @@ def cleanup_path(path: str) -> None:
 
 
 def single_pipeline(video_id: str) -> str:
-    """
-    Executes the full processing pipeline for one YouTube video ID.
-
-    Steps:
-    1. Logs memory usage before starting for monitoring.
-    2. Sets up a temp folder structure for download, separation, and zip.
-    3. Downloads audio from YouTube.
-    4. Runs 4-stem separation on downloaded audio.
-    5. Creates a ZIP archive of separated stems.
-    6. Logs memory usage after processing.
-    7. Returns the path to the resulting ZIP archive.
-
-    Raises RuntimeError if download or separation fails.
-    """
     process = psutil.Process()
     print(f"Memory before job {video_id}: {process.memory_info().rss / 1024 / 1024:.2f} MB")
 
-    base_dir = f'{BASE_TEMP_DIR}/{video_id}'
-    download_dir = f'{base_dir}/download'
-    separate_dir = f'{base_dir}/separated'
-    zip_path = f'{base_dir}/{video_id}.zip'
+    base_dir = os.path.join(BASE_TEMP_DIR, video_id)
+    download_dir = os.path.join(base_dir, "download")
+    separate_dir = os.path.join(base_dir, "separated")
+    zip_path = os.path.join(base_dir, f"{video_id}.zip")
 
     os.makedirs(download_dir, exist_ok=True)
     os.makedirs(separate_dir, exist_ok=True)
