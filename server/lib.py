@@ -10,6 +10,8 @@ import psutil
 from pytubefix import YouTube, Stream
 from spleeter.audio import Codec
 
+from server.logging_config import logger
+
 BASE_TEMP_DIR = os.environ.get("BASE_TEMP_DIR", "/app/temp")
 
 
@@ -18,9 +20,10 @@ def download_youtube_audio(url: str, output_path: str) -> str | None:
         os.makedirs(output_path, exist_ok=True)
         yt = YouTube(url)
         stream: Stream = yt.streams.get_audio_only()
+        logger.info(f"Downloading audio from URL: {url}")
         return stream.download(output_path)
     except Exception as e:
-        print(f"[ERROR] Download failed for {url}: {e}")
+        logger.error(f"Download failed for {url}: {e}")
         return None
 
 
@@ -36,7 +39,7 @@ def get_audio_duration(path: str) -> float:
         )
         return float(result.stdout.strip())
     except Exception as e:
-        raise RuntimeError(f"Falha ao obter duração do áudio: {e}")
+        raise RuntimeError(f"Failed to get audio duration: {e}")
 
 
 def separate_stems_chunked(input_path: str, output_path: str,
@@ -48,8 +51,12 @@ def separate_stems_chunked(input_path: str, output_path: str,
         tf.config.threading.set_intra_op_parallelism_threads(1)
         tf.config.threading.set_inter_op_parallelism_threads(1)
 
+        logger.info("Starting audio separation process...")
+
         total_duration = get_audio_duration(input_path)
         chunk_duration = min(45, max(10, int(total_duration / ceil(total_duration / 45))))
+        logger.debug(f"Total duration: {total_duration:.2f}s, chunk size: {chunk_duration}s")
+
         os.makedirs(output_path, exist_ok=True)
         tmp_base = tempfile.mkdtemp()
 
@@ -62,6 +69,7 @@ def separate_stems_chunked(input_path: str, output_path: str,
             offset = i * chunk_duration
             tmp_out = os.path.join(tmp_base, f'chunk_{i}')
             os.makedirs(tmp_out, exist_ok=True)
+            logger.info(f"Processing chunk {i + 1}/{chunk_count} at offset {offset}s")
 
             separator.separate_to_file(
                 audio_descriptor=input_path,
@@ -81,6 +89,7 @@ def separate_stems_chunked(input_path: str, output_path: str,
                 if os.path.exists(stem_path):
                     chunk_outputs[stem].append(stem_path)
 
+        logger.info("Concatenating stem outputs...")
         for stem in stems:
             concat_list = os.path.join(tmp_base, f"{stem}_concat.txt")
             with open(concat_list, "w") as f:
@@ -95,14 +104,16 @@ def separate_stems_chunked(input_path: str, output_path: str,
 
         shutil.rmtree(tmp_base, ignore_errors=True)
         del separator
+        logger.info("Audio separation completed successfully.")
         return True
 
     except Exception as e:
-        print(f"[ERROR] Chunked separation failed: {e}")
+        logger.error(f"Chunked separation failed: {e}")
         return False
 
 
 def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
+    logger.info(f"Creating zip file at: {zip_path}")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
             for file in files:
@@ -112,6 +123,7 @@ def create_zip_from_folder(folder_path: str, zip_path: str) -> None:
 
 
 def cleanup_path(path: str) -> None:
+    logger.info(f"Cleaning up path: {path}")
     if os.path.isdir(path):
         shutil.rmtree(path, ignore_errors=True)
     elif os.path.isfile(path):
@@ -120,7 +132,8 @@ def cleanup_path(path: str) -> None:
 
 def single_pipeline(video_id: str) -> str:
     process = psutil.Process()
-    print(f"Memory before job {video_id}: {process.memory_info().rss / 1024 / 1024:.2f} MB")
+    logger.info(f"Starting pipeline for video {video_id}")
+    logger.debug(f"Memory before job: {process.memory_info().rss / 1024 / 1024:.2f} MB")
 
     base_dir = os.path.join(BASE_TEMP_DIR, video_id)
     download_dir = os.path.join(base_dir, "download")
@@ -141,5 +154,6 @@ def single_pipeline(video_id: str) -> str:
 
     create_zip_from_folder(separate_dir, zip_path)
 
-    print(f"Memory after job {video_id}: {process.memory_info().rss / 1024 / 1024:.2f} MB")
+    logger.debug(f"Memory after job: {process.memory_info().rss / 1024 / 1024:.2f} MB")
+    logger.info(f"Pipeline completed for video {video_id}. Zip at {zip_path}")
     return zip_path

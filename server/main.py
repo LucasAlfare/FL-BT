@@ -1,14 +1,13 @@
 # main.py
 import os
-
 from celery.result import AsyncResult
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-
 from server.celery_worker import heavy_processing_entrypoint
 from server.lib import cleanup_path
+from server.logging_config import logger
 
 app = FastAPI()
 
@@ -31,7 +30,9 @@ async def root():
 def submit_task(video_id: str):
     try:
         task = heavy_processing_entrypoint.apply_async(args=[video_id])
+        logger.info(f"Task submitted for video_id={video_id}, task_id={task.id}")
     except Exception as e:
+        logger.error(f"Failed to submit task: {e}")
         return {"error": str(e)}
     return {"video_id": video_id, "task_id": task.id, "status": "PENDING"}
 
@@ -57,9 +58,8 @@ def download_result(task_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail="Invalid task result structure")
 
     zip_path = result_data["zip_path"]
+    logger.info(f"Serving file: {zip_path}")
     background_tasks.add_task(cleanup_path, os.path.dirname(zip_path))
-
-    print(f'responding the file of the path [{zip_path}]...')
 
     return FileResponse(
         path=os.path.abspath(zip_path),

@@ -1,6 +1,7 @@
 # celery_worker.py
 from celery import Celery
 from server.lib import single_pipeline
+from server.logging_config import logger
 
 celery_app = Celery(
     "worker",
@@ -11,6 +12,6 @@ celery_app = Celery(
 
 @celery_app.task
 def heavy_processing_entrypoint(video_id: str) -> dict[str, str]:
-    print(f"Starting the job {video_id}...")
+    logger.info(f"Received task to process video ID: {video_id}")
     zip_path = single_pipeline(video_id)
     return {"video_id": video_id, "zip_path": zip_path}
