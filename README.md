@@ -9,6 +9,15 @@
 
 > _"FL-BT"_ stands for _"Francisco Lucas BackingTracker"_
 
+<p align="center">
+  <img src="img/img.png" width="300px" />
+  <img src="img/img_1.png" width="300px" />
+</p>
+
+<p align="center">
+  <sub><i>Initial UI design exploration assisted by AI tools</i></sub>
+</p>
+
 This project is a wrapper for the Spleeter tool. It retrieves audio from one or more YouTube videos and separates them into stems.
 
 > Note: stems/tracks are isolated instrument tracks. Since audio data of wave formats (.wav raw/.mp3 compressed) are not made of digital signals, separating tracks of instruments/vocals is not trivial.
