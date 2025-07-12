@@ -7,105 +7,118 @@
 ╚═╝     ╚══════╝              ╚═════╝    ╚═╝   
 ```
 
-This project is a totally free simple wrapper that lets you **separate audio tracks from YouTube videos** using [Spleeter](https://github.com/deezer/spleeter). It works as a **local API server** with a basic desktop client. The goal is to make it easy—even for non-programmers—to split a song into separate audio components (vocals, drums, bass, others).
+> _"FL-BT"_ stands for _"Francisco Lucas BackingTracker"_
 
----
+This project is a wrapper for the Spleeter tool. It retrieves audio from one or more YouTube videos and separates them into stems.
 
-## 🔧 How It Works
+> Note: stems/tracks are isolated instrument tracks. Since audio data of wave formats (.wav raw/.mp3 compressed) are not made of digital signals, separating tracks of instruments/vocals is not trivial.
 
-1. **You provide a YouTube video URL.**
-2. The backend downloads the video and processes the audio using Spleeter (4-stem model).
-3. The result is a `.zip` file with the following separate tracks:
-   - vocals
-   - drums
-   - bass
-   - other (all remaining sounds)
+Each separation job of this application returns a result to the user. In short, the tool receives YouTube video IDs as _input_ and outputs zip files containing the isolated audio tracks/stems.
 
----
+Originally built as a pure Python command-line script, it became useful to expose it via an HTTP web API. Using Docker, it is now suitable for various environments.
 
-## 🧩 API Overview
+As this tool requires considerable memory and CPU, it is currently intended for localhost use only. It can run on cloud VPSs, but the target machine should have at least 12GB RAM and multiple CPU cores to handle background tasks. More implementation details are provided below.
 
-After starting the server:
+As a local personal service, it's ideal for musicians who want to extract stems from songs without relying on paid online services. In the future, we plan to add options such as combining multiple stems into a single track, among others.
 
-- `GET /api/request/{video_id}`  
-  Queues the YouTube video for processing.
+## Tech stack
 
-- `GET /api/status/{video_id}`  
-  Returns the processing status: `pending`, `processing`, `success`, or `error`.
+The project uses mostly Python, since the Spleeter library is written in it:
 
-- `GET /api/download/{video_id}`  
-  When status is `success`, downloads a `.zip` with the extracted stems.
+- [Python 3.10](https://www.python.org/) _language*_;
+- [UV](https://github.com/astral-sh/uv) (Python package manager, not pip);
+- [`pytubefix`](https://github.com/JuanBindez/pytubefix) for YouTube audio downloading;
+- [`spleeter`](https://github.com/deezer/spleeter) for audio stem separation;
+- FastAPI as the API web server;
+- Celery with Redis for background tasks;
+- React + Vite to generate a simple web interface.
 
-> Replace `{video_id}` with the actual YouTube video ID (e.g., `dQw4w9WgXcQ`).
+> _*Note_: Python 3.10 is used due to compatibility constraints. Spleeter is no longer actively released, and only works correctly with this specific version. Dependency conflicts were mostly resolved by using UV with this Python version.
 
----
+## Implementation flow
 
-## 🚀 How to Run
+Simplified flow:
 
-Is possible to run only the python FastAPI by itself after installing the [`requirements.txt`](server/requirements.txt). But for this, you need to get `FFMPEG` manually for your operating system, because Spleeter uses it. To skip this, read Docker instructions below. 
+- Task submitted via API:
+  - `POST /api/submit/{ID}` — receives the YouTube video ID in path param;
+  - responds with a `TASK_ID`;
+- Task is enqueued using Celery;
+- Client can poll for task status:
+  - `GET /api/status/{TASK_ID}`;
+- When complete, result files are stored temporarily:
+  - files are deleted after download;
+  - cleanup worker planned for the future;
+  - currently stored locally, but may move to CDN later;
+- Client can:
+  - `GET /api/download/{TASK_ID}` to download the result;
+- Multiple requests are allowed:
+  - API is `asynchronous`;
+  - background worker is `synchronous` (single job at a time).
 
-### Requirements
-- [Docker](https://www.docker.com/)
+## How to use
 
-If you want to use with the Docker and with the simple client you'll need to build the client to it become accessible from the starter script:
-- Windows OS
-- [Java JDK 17+](https://adoptium.net/)
-- [Gradle](https://gradle.org/) (or use the wrapper)
+This project runs with Docker. If Docker is available on your machine:
 
-### 1. Build and Start Everything
-Run `start.bat` (Windows only). It:
-- Builds and starts the API in Docker
-- Launches the desktop client
+- Clone or download this repository;
+- Navigate to the folder in terminal;
+- Run:
+```shell
+docker-compose up --build
+````
 
-### 2. Build the Desktop Client (Only Once)
+For later runs, omit the `--build` flag.
 
-Navigate to the `desktop_client` folder and run:  
-```bash
-./gradlew packageReleaseUberJarForCurrentOS
-```
+After startup, access the web interface at `http://localhost:8000/app`.
 
-It creates the JAR at:  
-```text
-desktop_client/app/build/compose/jars/FLBTClient-windows-x64-1.0.0-release.jar
-```
+You can also use the API via terminal with curl or any HTTP client:
 
-This JAR will be used by the `start.bat` script.
+* `POST /api/submit/{youtube_video_id}`
 
----
+  * responds with a `task ID`;
+  * example: `curl -X POST http://localhost:8000/api/submit/vjVkXlxsO8Q`
+  * response: `{"task_id":"9332b4ce-bb5b-4ecf-9457-e14581486223","status":"PENDING","error":null}`
+* `GET /api/status/{task_id}`
 
-## 📠 Using the project
+  * example: `curl http://localhost:8000/api/status/9332b4ce-bb5b-4ecf-9457-e14581486223`
+  * response: `{"task_id":"9332b4ce-bb5b-4ecf-9457-e14581486223","status":"SUCCESS","error":null}`
+* `GET /api/download/{task_id}`
 
-If using the simple client, just paste YouTube video IDs, one per line, at the top text area, then click the button to request processing for all IDs. If using only API, look API reference.
+  * TODO: add usage examples
 
----
+If you don't want to deal with curl endpointing, the web UI page at `/app` handles then for you.
 
-## ⚠️ Limitations
+> Note 1: Spleeter uses FFMPEG and pretrained model binaries, so container size is large.
 
-- **No error handling** for failed downloads, network issues, or parallel requests.
-- **Not optimized** for low-performance machines (especially low-end VPS).
-- **Still experimental**—not production-ready.
-- **Local usage**—for now, designed to be used locally, at home.
+> Note 2: Due to heavy dependencies, container build takes time.
 
----
+> Note 3: You may face low-memory issues depending on your machine.
 
-## 🐍 Python Compatibility
+> Note 4: On my machine, Docker takes around 500 seconds to build the container.
 
-- Requires **Python 3.10**, due to current Spleeter version requirements.
+## Project structure
 
----
+From project root:
 
-## 📦 Technologies Used
+* `Dockerfile`, `docker-compose.yaml`, `pyproject.toml`, `uv.lock`
 
-- Python + FastAPI (backend)
-- Spleeter (audio separation)
-- Docker
-- Kotlin Desktop Compose (client)
+  * required files to build and run the container;
+* `/server`
 
----
+  * Python source code;
+* `/web_client`
 
-## 💡 Future Ideas
+  * React + Vite project to generate a static web page.
 
-- Improve deploy/distribution process;
-- Make more possible to run externally (VPS, etc);
-- Implement a Web-Client;
-- Implement combinator of the extracted tracks.
+## Known issues
+
+Due to memory usage and processing intensity, you may face:
+
+* Worker task crash in container:
+
+  * likely due to memory leaks — Spleeter (via TensorFlow/Keras) may not release memory or dispose C++ tensors properly between tasks;
+  * workaround: keep Celery queue small (max 2 jobs); if one fails, restart container and re-submit the task;
+* Long YouTube videos can crash the worker due to memory exhaustion.
+
+## Contributing
+
+This is a personal-use project, but it's also a good learning opportunity. I'm likely to miss best practices in some areas, so any contribution or feedback is welcome.
