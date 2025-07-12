@@ -33,37 +33,6 @@ def download_youtube_audio(url: str, output_path: str) -> str | None:
         return None
 
 
-def separate_4stems(input_path: str, output_path: str, codec: Codec = Codec.MP3) -> bool:
-    """
-    Performs 4-stem audio separation on the input audio file.
-
-    - Loads spleeter's Separator with 4 stems configuration (vocals, drums, bass, other).
-    - Limits TensorFlow thread parallelism to reduce resource contention.
-    - Separates audio and writes output to given directory in specified codec.
-    - Deletes separator instance to free resources explicitly.
-    - Returns True on success, False on any failure.
-    """
-    try:
-        from spleeter.separator import Separator
-        import tensorflow as tf
-
-        # Restrict TensorFlow parallelism to avoid excessive CPU usage
-        tf.config.threading.set_intra_op_parallelism_threads(1)
-        tf.config.threading.set_inter_op_parallelism_threads(1)
-
-        separator = Separator(params_descriptor='spleeter:4stems', multiprocess=False)
-
-        separator.separate_to_file(input_path, output_path, codec=codec, synchronous=True)
-
-        del separator  # Explicit cleanup
-
-        return True
-
-    except Exception as e:
-        print(f"[ERROR] Separation failed: {e}")
-        return False
-
-
 def get_audio_duration(path: str) -> float:
     """
     Retorna a duração (em segundos) de um arquivo de áudio via ffprobe.
