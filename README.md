@@ -10,8 +10,8 @@
 > _"FL-BT"_ stands for _"Francisco Lucas BackingTracker"_
 
 <p align="center">
-  <img src="img/img.png" width="300px" />
-  <img src="img/img_1.png" width="300px" />
+  <img src="img/img.png" width="300px"  alt="image of main UI with task in 'PENDING' state"/>
+  <img src="img/img_1.png" width="300px"  alt="image of main UI with task in 'SUCCESS' state"/>
 </p>
 
 <p align="center">
