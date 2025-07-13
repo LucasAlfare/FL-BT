@@ -62,6 +62,7 @@ export default function App() {
                     taskId: data.task_id,
                     status: data.status,
                     error: null,
+                    url: null,
                 })
             } catch (e) {
                 newTasks.push({
@@ -69,6 +70,7 @@ export default function App() {
                     taskId: null,
                     status: 'ERROR',
                     error: e.message || 'Falha ao enviar para API',
+                    url: null,
                 })
             }
         }
@@ -91,20 +93,16 @@ export default function App() {
                         if (!res.ok) throw new Error(`Erro ${res.status}`)
                         const data = await res.json()
 
+                        let updated = {...task, status: data.status, error: data.error || null}
+
                         if (data.status === 'SUCCESS') {
-                            const fileRes = await fetch(`${SERVER}/api/download/${task.taskId}`)
-                            const blob = await fileRes.blob()
-                            const url = URL.createObjectURL(blob)
-                            const a = document.createElement('a')
-                            a.href = url
-                            a.download = `${task.videoId}.zip`
-                            document.body.appendChild(a)
-                            a.click()
-                            a.remove()
-                            URL.revokeObjectURL(url)
+                            const urlRes = await fetch(`${SERVER}/api/download/${task.taskId}`)
+                            if (!urlRes.ok) throw new Error(`Erro ao buscar URL`)
+                            const urlData = await urlRes.json()
+                            updated.url = urlData.url
                         }
 
-                        return {...task, status: data.status, error: data.error || null}
+                        return updated
                     } catch (err) {
                         return {...task, error: err.message || 'Erro ao verificar status'}
                     }
@@ -128,7 +126,6 @@ export default function App() {
         }
     }, [tasks])
 
-    // Handle input by turning each ID into a chip on Enter or comma
     const [inputBuffer, setInputBuffer] = useState('')
     const [chips, setChips] = useState([])
 
@@ -161,111 +158,109 @@ export default function App() {
     return (
         <>
             <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap');
+              @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap');
 
-          * {
-            box-sizing: border-box;
-          }
-          body,html,#root {
-            margin:0; padding:0; height:100%;
-            background: #121212;
-            color: #E0E0E0;
-            font-family: 'JetBrains Mono', monospace;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 24px;
-          }
-          #app {
-            width: 100%;
-            max-width: 900px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            background: #1E1E2F;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 0 30px #4A148C;
-          }
-          h2 {
-            margin: 0 0 16px 0;
-            font-weight: 700;
-            font-size: 1.8rem;
-            color: #9C27B0;
-            user-select: none;
-          }
-          h3 {
-            color: #9C27B0;
-            margin-bottom: 12px;
-            user-select: none;
-          }
-          label {
-            font-weight: 600;
-            color: #B39DDB;
-            margin-bottom: 8px;
-            user-select: none;
-          }
-          .input-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            background: #2C2C3E;
-            border-radius: 12px;
-            padding: 8px 12px;
-            min-height: 50px;
-            max-height: 150px;
-            overflow-y: auto;
-            border: 1.5px solid #9C27B0;
-          }
-          .input-container:focus-within {
-            border-color: #CE93D8;
-            box-shadow: 0 0 8px #CE93D8;
-          }
-          .input-buffer {
-            flex-grow: 1;
-            border: none;
-            background: transparent;
-            color: #E0E0E0;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1rem;
-            outline: none;
-            min-width: 60px;
-          }
-          button {
-            margin-top: 16px;
-            padding: 12px 24px;
-            background: #9C27B0;
-            border: none;
-            border-radius: 16px;
-            color: white;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            user-select: none;
-            font-family: 'JetBrains Mono', monospace;
-          }
-          button:hover {
-            background: #BA68C8;
-          }
-          button:active {
-            background: #7B1FA2;
-          }
-          .tasks-list {
-            margin-top: 32px;
-            overflow-y: auto;
-            flex-grow: 1;
-          }
-          .task-chip {
-            user-select: none;
-          }
-          .error-text {
-            color: #EF5350;
-            font-size: 0.85rem;
-            margin-top: 4px;
-            white-space: pre-wrap;
-            font-family: 'JetBrains Mono', monospace;
-          }
-        `}</style>
+              * { box-sizing: border-box; }
+              body,html,#root {
+                margin:0; padding:0; height:100%;
+                background: #121212;
+                color: #E0E0E0;
+                font-family: 'JetBrains Mono', monospace;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                padding: 24px;
+              }
+              #app {
+                width: 100%;
+                max-width: 900px;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                background: #1E1E2F;
+                border-radius: 12px;
+                padding: 24px;
+                box-shadow: 0 0 30px #4A148C;
+              }
+              h2 {
+                margin: 0 0 16px 0;
+                font-weight: 700;
+                font-size: 1.8rem;
+                color: #9C27B0;
+                user-select: none;
+              }
+              h3 {
+                color: #9C27B0;
+                margin-bottom: 12px;
+                user-select: none;
+              }
+              label {
+                font-weight: 600;
+                color: #B39DDB;
+                margin-bottom: 8px;
+                user-select: none;
+              }
+              .input-container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                background: #2C2C3E;
+                border-radius: 12px;
+                padding: 8px 12px;
+                min-height: 50px;
+                max-height: 150px;
+                overflow-y: auto;
+                border: 1.5px solid #9C27B0;
+              }
+              .input-container:focus-within {
+                border-color: #CE93D8;
+                box-shadow: 0 0 8px #CE93D8;
+              }
+              .input-buffer {
+                flex-grow: 1;
+                border: none;
+                background: transparent;
+                color: #E0E0E0;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 1rem;
+                outline: none;
+                min-width: 60px;
+              }
+              button {
+                margin-top: 16px;
+                padding: 12px 24px;
+                background: #9C27B0;
+                border: none;
+                border-radius: 16px;
+                color: white;
+                font-weight: 700;
+                cursor: pointer;
+                transition: background-color 0.2s;
+                user-select: none;
+                font-family: 'JetBrains Mono', monospace;
+              }
+              button:hover {
+                background: #BA68C8;
+              }
+              button:active {
+                background: #7B1FA2;
+              }
+              .tasks-list {
+                margin-top: 32px;
+                overflow-y: auto;
+                flex-grow: 1;
+              }
+              .task-chip {
+                user-select: none;
+              }
+              .error-text {
+                color: #EF5350;
+                font-size: 0.85rem;
+                margin-top: 4px;
+                white-space: pre-wrap;
+                font-family: 'JetBrains Mono', monospace;
+              }
+            `}</style>
             <div id="app" role="main">
                 <h2>Separador de Áudio do YouTube</h2>
 
@@ -307,7 +302,13 @@ export default function App() {
                                         <Chip
                                             className="task-chip"
                                             color={color}
-                                            onClick={() => setExpandedId(isExpanded ? null : task.videoId)}
+                                            onClick={() => {
+                                                if (task.status === 'SUCCESS' && task.url) {
+                                                    window.open(task.url, '_blank')
+                                                } else {
+                                                    setExpandedId(isExpanded ? null : task.videoId)
+                                                }
+                                            }}
                                             expanded={isExpanded}
                                         >
                                             {task.videoId} → {emoji} {task.status}

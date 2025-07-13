@@ -11,6 +11,7 @@ from pytubefix import YouTube, Stream
 from spleeter.audio import Codec
 
 from server.logging_config import logger
+from server.github_as_cdn_helper import GithubHelper
 
 BASE_TEMP_DIR = os.environ.get("BASE_TEMP_DIR", "/app/temp")
 
@@ -176,21 +177,30 @@ def cleanup_path(path: str) -> None:
         os.remove(path)
 
 
-def single_pipeline(video_id: str) -> str:
+async def single_pipeline(video_id: str) -> str:
     """
-    Full processing pipeline: download, separate stems, zip.
+    Full processing pipeline: download, separate stems, zip or return existing CDN URL.
 
     Args:
         video_id (str): YouTube video ID.
 
     Returns:
-        str: Path to resulting ZIP file.
+        str: URL to resulting ZIP file (from CDN).
 
     Raises:
         RuntimeError: On any stage failure.
     """
+    # First verifies if CDN already contains the file
+    existing_url = await GithubHelper.file_exists_on_github(
+        input_file_name=f"{video_id}.zip"
+    )
+    if existing_url:
+        logger.info(f"File {video_id} is cached in the CDN!")
+        return existing_url
+
     process = psutil.Process()
-    logger.info(f"Starting pipeline for video {video_id}")
+    logger.info(f"File {video_id} is NOT cached in the CDN.")
+    logger.info(f"Starting pipeline for video {video_id}...")
     logger.debug(f"Memory before job: {process.memory_info().rss / 1024 / 1024:.2f} MB")
 
     base_dir = os.path.join(BASE_TEMP_DIR, video_id)
@@ -208,10 +218,20 @@ def single_pipeline(video_id: str) -> str:
 
     success = separate_stems_chunked(downloaded_path, separate_dir)
     if not success:
-        raise RuntimeError("Separation failed")
+        raise RuntimeError("Separation failed.")
 
     create_zip_from_folder(separate_dir, zip_path)
 
-    logger.debug(f"Memory after job: {process.memory_info().rss / 1024 / 1024:.2f} MB")
-    logger.info(f"Pipeline completed for video {video_id}. Zip at {zip_path}")
-    return zip_path
+    logger.debug(f"Memory after job: {process.memory_info().rss / 1024 / 1024:.2f} MB.")
+    logger.info(f"Pipeline completed for video {video_id}. Uploading to CDN...")
+
+    with open(zip_path, "rb") as f:
+        upload_result = await GithubHelper.upload_file_to_github(
+            input_file_name=f"{video_id}.zip",
+            input_file_bytes=f.read()
+        )
+
+    if not upload_result:
+        raise RuntimeError("CDN upload failed.")
+
+    return upload_result.content.download_url
