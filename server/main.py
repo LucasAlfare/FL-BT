@@ -1,13 +1,10 @@
 # main.py
-import os
 from celery.result import AsyncResult
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from server.celery_worker import heavy_processing_entrypoint
-from server.lib import cleanup_path
 from server.logging_config import logger
 
 app = FastAPI()

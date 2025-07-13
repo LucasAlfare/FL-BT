@@ -1,3 +1,4 @@
+# Dockerfile
 FROM node:20 AS frontend-builder
 LABEL authors="Francisco Lucas"
 

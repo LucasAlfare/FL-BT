@@ -9,12 +9,13 @@
 
 > _"FL-BT"_ stands for _"Francisco Lucas BackingTracker"_
 
-<p>
+
+<p align="center">
   <img src="img/img.png" width="300px"  alt="image of main UI with task in 'PENDING' state"/>
   <img src="img/img_1.png" width="300px"  alt="image of main UI with task in 'SUCCESS' state"/>
 </p>
 
-<p>
+<p align="center">
   <sub><i>Initial UI design exploration assisted by AI tools</i></sub>
 </p>
 
@@ -59,17 +60,20 @@ GITHUB_REPO=repository_name
 GITHUB_TOKEN=ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 GITHUB_COMMIT_NAME=any_simple_name_for_ideentification
 GITHUB_COMMIT_EMAIL=any_email_for_registry@abc.com
-````
+MAX_AUDIO_CHUNK_DURATION=20#in seconds
+```
 
+Relevant descriptions:
 - `GITHUB_USERNAME`: The name of the owner of the GitHub repository (probably you).
 - `GITHUB_REPO`: GitHub repository name where cached files will be stored and retrieved.
 - `GITHUB_TOKEN`: Personal Access Token for accessing the GitHub API to upload/download cached files.
+- `MAX_AUDIO_CHUNK_DURATION`: Defines the audio chunk duration which spleeter will take during each separation. Defaults to 45. 
 
 This is **mandatory** because the project uses GitHub as a makeshift CDN to cache processed results. Without this setup, the project will not cache outputs, leading to repeated processing and high resource usage.
 
 No alternative CDN providers are supported today. You cannot substitute GitHub with S3, Cloudflare, or others **yet**.
 
-> Note: not less important but as this needs to connect to GitHub repository, you can not to run this offline. In the future I may re-implement offline usage, but for now, stay connected.
+> **Note:** not less important but as this needs to connect to GitHub repository AND to download YouTube audio from videos, you can not to run this offline. In the future I may re-implement offline usage, but for now, stay connected.
 
 ### Running and using
 
@@ -107,7 +111,7 @@ Wait the build, then access: [http://localhost:8000/app](http://localhost:8000/a
 4. On success, download ZIP:
    `GET /api/download/{task_id}`
 
-> Background worker is **synchronous** (1 job at a time), API is **asynchronous**
+> **Note:** Background worker is **synchronous** (1 job at a time), API is **asynchronous**
 
 ---
 
@@ -126,11 +130,11 @@ curl http://localhost:8000/api/status/{task_id}
 curl -O http://localhost:8000/api/download/{task_id}
 ```
 
-> The UI served in the endpoint `/app` handles all those API interactions.
+> **Note:** The UI served in the endpoint `/app` handles all those API interactions.
 
 ---
 
-## Notes
+## Other notes
 
 * Spleeter depends on FFMPEG and pretrained models → large container
 * First build is slow (\~500s)
