@@ -13,6 +13,8 @@ services:
       retries: 3
     volumes:
       - shared-temp:/app/temp
+    env_file:
+      - .env
 
   worker:
     build: .
@@ -39,6 +41,8 @@ services:
     oom_kill_disable: false
     volumes:
       - shared-temp:/app/temp
+    env_file:
+      - .env
 
   redis:
     image: redis:8.0.0-alpine

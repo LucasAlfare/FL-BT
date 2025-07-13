@@ -1,4 +1,6 @@
 # celery_worker.py
+import asyncio
+
 from celery import Celery
 from server.lib import single_pipeline
 from server.logging_config import logger
@@ -20,8 +22,8 @@ def heavy_processing_entrypoint(video_id: str) -> dict[str, str]:
         video_id (str): YouTube video ID.
 
     Returns:
-        dict[str, str]: Dictionary with video_id and zip_path.
+        dict[str, str]: Dictionary with video_id and url to the ZIP file in a CDN.
     """
-    logger.info(f"Received task to process video ID: {video_id}")
-    zip_path = single_pipeline(video_id)
-    return {"video_id": video_id, "zip_path": zip_path}
+    logger.info(f"Received task to process video ID: {video_id}.")
+    url = asyncio.run(single_pipeline(video_id))
+    return {"video_id": video_id, "url": url}

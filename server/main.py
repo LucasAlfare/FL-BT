@@ -72,30 +72,22 @@ def check_status(task_id: str):
 
 
 @app.get("/api/download/{task_id}")
-def download_result(task_id: str, background_tasks: BackgroundTasks):
+def download_result(task_id: str):
     """
-    Download ZIP result from completed task.
+    Returns the URL from the ZIP file generated after pipeline processing.
 
     Args:
         task_id (str): Task ID.
-        background_tasks (BackgroundTasks): For async cleanup.
 
     Returns:
-        FileResponse: ZIP file if successful.
+        dict: URL of the ZIP file in the CDN.
     """
     task_result = AsyncResult(task_id, app=heavy_processing_entrypoint.app)
     if not task_result or task_result.status != "SUCCESS":
         raise HTTPException(status_code=404, detail="Result not available")
 
     result_data = task_result.result
-    if not isinstance(result_data, dict) or "zip_path" not in result_data:
+    if not isinstance(result_data, dict) or "url" not in result_data:
         raise HTTPException(status_code=500, detail="Invalid task result structure")
 
-    zip_path = result_data["zip_path"]
-    logger.info(f"Serving file: {zip_path}")
-    background_tasks.add_task(cleanup_path, os.path.dirname(zip_path))
-
-    return FileResponse(
-        path=os.path.abspath(zip_path),
-        media_type="application/zip"
-    )
+    return {"url": result_data["url"]}

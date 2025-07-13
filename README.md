@@ -9,125 +9,161 @@
 
 > _"FL-BT"_ stands for _"Francisco Lucas BackingTracker"_
 
-<p align="center">
+<p>
   <img src="img/img.png" width="300px"  alt="image of main UI with task in 'PENDING' state"/>
   <img src="img/img_1.png" width="300px"  alt="image of main UI with task in 'SUCCESS' state"/>
 </p>
 
-<p align="center">
+<p>
   <sub><i>Initial UI design exploration assisted by AI tools</i></sub>
 </p>
 
-This project is a wrapper for the Spleeter tool. It retrieves audio from one or more YouTube videos and separates them into stems.
+This project wraps [Spleeter](https://github.com/deezer/spleeter) to extract audio stems from one or more YouTube videos.
 
-> Note: stems/tracks are isolated instrument tracks. Since audio data of wave formats (.wav raw/.mp3 compressed) are not made of digital signals, separating tracks of instruments/vocals is not trivial.
+---
 
-Each separation job of this application returns a result to the user. In short, the tool receives YouTube video IDs as _input_ and outputs zip files containing the isolated audio tracks/stems.
+## Overview
 
-Originally built as a pure Python command-line script, it became useful to expose it via an HTTP web API. Using Docker, it is now suitable for various environments.
+Each job takes YouTube video IDs as input and returns a ZIP with extracted stems.
 
-As this tool requires considerable memory and CPU, it is currently intended for localhost use only. It can run on cloud VPSs, but the target machine should have at least 12GB RAM and multiple CPU cores to handle background tasks. More implementation details are provided below.
+This was born as a CLI tool, now I expanded to an app exposed via HTTP API. Dockerized for cross-environment use.
 
-As a local personal service, it's ideal for musicians who want to extract stems from songs without relying on paid online services. In the future, we plan to add options such as combining multiple stems into a single track, among others.
+Ideal for musicians extracting stems locally, without relying on paid services. Future enhancements may include stem merging.
 
-## Tech stack
+> **Warning**: High CPU and RAM usage. Designed for localhost use for now.
+> Remote/VPS deployments are possible but **not recommended** for now due to:
+> 
+> * Lack of authentication or rate limiting;
+> * Single-threaded worker limits concurrency adjusts;
 
-The project uses mostly Python, since the Spleeter library is written in it:
-
-- [Python 3.10](https://www.python.org/) _language*_;
-- [UV](https://github.com/astral-sh/uv) (Python package manager, not pip);
-- [`pytubefix`](https://github.com/JuanBindez/pytubefix) for YouTube audio downloading;
-- [`spleeter`](https://github.com/deezer/spleeter) for audio stem separation;
-- FastAPI as the API web server;
-- Celery with Redis for background tasks;
-- React + Vite to generate a simple web interface.
-
-> _*Note_: Python 3.10 is used due to compatibility constraints. Spleeter is no longer actively released, and only works correctly with this specific version. Dependency conflicts were mostly resolved by using UV with this Python version.
-
-## Implementation flow
-
-Simplified flow:
-
-- Task submitted via API:
-  - `POST /api/submit/{ID}` — receives the YouTube video ID in path param;
-  - responds with a `TASK_ID`;
-- Task is enqueued using Celery;
-- Client can poll for task status:
-  - `GET /api/status/{TASK_ID}`;
-- When complete, result files are stored temporarily:
-  - files are deleted after download;
-  - cleanup worker planned for the future;
-  - currently stored locally, but may move to CDN later;
-- Client can:
-  - `GET /api/download/{TASK_ID}` to download the result;
-- Multiple requests are allowed:
-  - API is `asynchronous`;
-  - background worker is `synchronous` (single job at a time).
+---
 
 ## How to use
 
-This project runs with Docker. If Docker is available on your machine:
+This project uses Docker with `.env` variables to work.
 
-- Clone or download this repository;
-- Navigate to the folder in terminal;
-- Run:
-```shell
+### .env Configuration and GitHub as CDN
+
+This project requires a `.env` file for configuration, as all CDN-related functionality currently depends exclusively on GitHub repositories acting as a CDN. No other CDN providers are supported at this moment.
+
+You **must** have:
+
+- A **GitHub repository** to store cached stem extraction results.
+- A **GitHub Personal Access Token (PAT)** with appropriate repository permissions.
+
+The `.env` file must contain these variables:
+
+```dotenv
+GITHUB_USERNAME=username
+GITHUB_REPO=repository_name
+GITHUB_TOKEN=ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+GITHUB_COMMIT_NAME=any_simple_name_for_ideentification
+GITHUB_COMMIT_EMAIL=any_email_for_registry@abc.com
+````
+
+- `GITHUB_USERNAME`: The name of the owner of the GitHub repository (probably you).
+- `GITHUB_REPO`: GitHub repository name where cached files will be stored and retrieved.
+- `GITHUB_TOKEN`: Personal Access Token for accessing the GitHub API to upload/download cached files.
+
+This is **mandatory** because the project uses GitHub as a makeshift CDN to cache processed results. Without this setup, the project will not cache outputs, leading to repeated processing and high resource usage.
+
+No alternative CDN providers are supported today. You cannot substitute GitHub with S3, Cloudflare, or others **yet**.
+
+> Note: not less important but as this needs to connect to GitHub repository, you can not to run this offline. In the future I may re-implement offline usage, but for now, stay connected.
+
+### Running and using
+
+With docker available in your machine, run:
+
+```bash
 docker-compose up --build
 ````
 
-For later runs, omit the `--build` flag.
+Wait the build, then access: [http://localhost:8000/app](http://localhost:8000/app) to interact with the web client page.
 
-After startup, access the web interface at `http://localhost:8000/app`.
+---
 
-You can also use the API via terminal with curl or any HTTP client:
+## Tech Stack
 
-* `POST /api/submit/{youtube_video_id}`
+* [Python 3.10](https://www.python.org/)
+* [UV](https://github.com/astral-sh/uv) (package manager)
+* [`pytubefix`](https://github.com/JuanBindez/pytubefix) – YouTube downloader
+* [`spleeter`](https://github.com/deezer/spleeter) – stem separation
+* FastAPI – HTTP server
+* Celery + Redis – task queue
+* React + Vite – web UI
 
-  * responds with a `task ID`;
-  * example: `curl -X POST http://localhost:8000/api/submit/vjVkXlxsO8Q`
-  * response: `{"task_id":"9332b4ce-bb5b-4ecf-9457-e14581486223","status":"PENDING","error":null}`
-* `GET /api/status/{task_id}`
+> **Note**: Python 3.10 is required due to Spleeter compatibility. UV also resolves most dependency conflicts.
 
-  * example: `curl http://localhost:8000/api/status/9332b4ce-bb5b-4ecf-9457-e14581486223`
-  * response: `{"task_id":"9332b4ce-bb5b-4ecf-9457-e14581486223","status":"SUCCESS","error":null}`
-* `GET /api/download/{task_id}`
+---
 
-  * TODO: add usage examples
+## Architecture
 
-If you don't want to deal with curl endpointing, the web UI page at `/app` handles then for you.
+1. `POST /api/submit/{video_id}`
+   → Enqueues task, returns `task_id`
+2. Celery runs stem extraction
+3. Client polls:
+   `GET /api/status/{task_id}`
+4. On success, download ZIP:
+   `GET /api/download/{task_id}`
 
-> Note 1: Spleeter uses FFMPEG and pretrained model binaries, so container size is large.
+> Background worker is **synchronous** (1 job at a time), API is **asynchronous**
 
-> Note 2: Due to heavy dependencies, container build takes time.
+---
 
-> Note 3: You may face low-memory issues depending on your machine.
+### API Examples
 
-> Note 4: On my machine, Docker takes around 500 seconds to build the container.
+If you don't want to interact with the web-page from `/app`, you can handle endpoints manually:
 
-## Project structure
+```bash
+# Submit job
+curl -X POST http://localhost:8000/api/submit/vjVkXlxsO8Q
 
-From project root:
+# Check status
+curl http://localhost:8000/api/status/{task_id}
 
-* `Dockerfile`, `docker-compose.yaml`, `pyproject.toml`, `uv.lock`
+# Download result (once ready)
+curl -O http://localhost:8000/api/download/{task_id}
+```
 
-  * required files to build and run the container;
-* `/server`
+> The UI served in the endpoint `/app` handles all those API interactions.
 
-  * Python source code;
-* `/web_client`
+---
 
-  * React + Vite project to generate a static web page.
+## Notes
 
-## Known issues
+* Spleeter depends on FFMPEG and pretrained models → large container
+* First build is slow (\~500s)
+* High memory usage can crash tasks
+* Long videos may fail due to TensorFlow memory issues
 
-Due to memory usage and processing intensity, you may face:
+---
 
-* Worker task crash in container:
+## Project Layout
 
-  * likely due to memory leaks — Spleeter (via TensorFlow/Keras) may not release memory or dispose C++ tensors properly between tasks;
-  * workaround: keep Celery queue small (max 2 jobs); if one fails, restart container and re-submit the task;
-* Long YouTube videos can crash the worker due to memory exhaustion.
+```
+/
+├── Dockerfile, docker-compose.yaml, pyproject.toml, uv.lock, .env
+├── /server        # Python backend
+└── /web_client    # React UI
+```
+
+---
+
+## Known Issues
+
+In this current project state, I implemented a strategy to save some memory. Instead of calling spleeter to separate a full song, now we separate the song in "chunks", which uses less memory, once spleeter will load less data to tensorflow/keras each time. After creating a lot of separated chunks, I used *FFMPEG* to glue them and make a new track. This saves memory but can lead to weird abrupt sound transitions, due to new chunk conversion being a new TensorFlow model prediction. The results are acceptable for queueing multiple songs in Celery. Finally, I have set the chunks to 45 seconds, and the abrupt sound transitions would not happen too much. 
+
+Another planned improvement is proper CDN caching. Since YouTube video IDs don't change, storing separation results in a CDN cache avoids re-processing. Currently, only GitHub repositories act as this cache. As was said, currently I am using GitHub repositories itself as CDN provider. More on this in the future.
+
+---
+
+## License
+
+See [LICENSE](./LICENSE) for details.
+
+---
 
 ## Contributing
 
-This is a personal-use project, but it's also a good learning opportunity. I'm likely to miss best practices in some areas, so any contribution or feedback is welcome.
+This is a personal-use project, but contributions or suggestions are welcome!
