@@ -18,116 +18,107 @@
   <sub><i>Initial UI design exploration assisted by AI tools</i></sub>
 </p>
 
-This project is a wrapper for the Spleeter tool. It retrieves audio from one or more YouTube videos and separates them into stems.
+This project wraps [Spleeter](https://github.com/deezer/spleeter) to extract audio stems from one or more YouTube videos.
 
-> Note: stems/tracks are isolated instrument tracks. Since audio data of wave formats (.wav raw/.mp3 compressed) are not made of digital signals, separating tracks of instruments/vocals is not trivial.
+> **Note**: *Stems* are isolated instrument/vocal tracks. Since waveforms (e.g., WAV/MP3) aren't digitally tagged by instrument, separation is computationally intensive and inherently lossy.
 
-Each separation job of this application returns a result to the user. In short, the tool receives YouTube video IDs as _input_ and outputs zip files containing the isolated audio tracks/stems.
+## Overview
 
-Originally built as a pure Python command-line script, it became useful to expose it via an HTTP web API. Using Docker, it is now suitable for various environments.
+Each job takes YouTube video IDs as input and returns a ZIP with extracted stems.
 
-As this tool requires considerable memory and CPU, it is currently intended for localhost use only. It can run on cloud VPSs, but the target machine should have at least 12GB RAM and multiple CPU cores to handle background tasks. More implementation details are provided below.
+Originally a CLI tool, now exposed via HTTP API. Dockerized for cross-environment use.
 
-As a local personal service, it's ideal for musicians who want to extract stems from songs without relying on paid online services. In the future, we plan to add options such as combining multiple stems into a single track, among others.
+> **Warning**: High CPU and RAM usage. Designed for localhost use.
+> Remote/VPS deployments are possible but **not recommended** for now due to:
+>
+> * Lack of authentication or rate limiting;
+> * No resource quota or multi-tenant handling;
+> * Single-threaded worker limits concurrency;
+> * Missing CDN/file persistence strategy.
 
-## Tech stack
+Ideal for musicians extracting stems locally, without relying on paid services. Future enhancements may include stem merging.
 
-The project uses mostly Python, since the Spleeter library is written in it:
+## Tech Stack
 
-- [Python 3.10](https://www.python.org/) _language*_;
-- [UV](https://github.com/astral-sh/uv) (Python package manager, not pip);
-- [`pytubefix`](https://github.com/JuanBindez/pytubefix) for YouTube audio downloading;
-- [`spleeter`](https://github.com/deezer/spleeter) for audio stem separation;
-- FastAPI as the API web server;
-- Celery with Redis for background tasks;
-- React + Vite to generate a simple web interface.
+* [Python 3.10](https://www.python.org/)
+* [UV](https://github.com/astral-sh/uv) (package manager)
+* [`pytubefix`](https://github.com/JuanBindez/pytubefix) – YouTube downloader
+* [`spleeter`](https://github.com/deezer/spleeter) – stem separation
+* FastAPI – HTTP server
+* Celery + Redis – task queue
+* React + Vite – web UI
 
-> _*Note_: Python 3.10 is used due to compatibility constraints. Spleeter is no longer actively released, and only works correctly with this specific version. Dependency conflicts were mostly resolved by using UV with this Python version.
+> **Note**: Python 3.10 is required due to Spleeter compatibility. UV resolves most dependency conflicts.
 
-## Implementation flow
+## Architecture
 
-Simplified flow:
+1. `POST /api/submit/{video_id}`
+   → Enqueues task, returns `task_id`
+2. Celery runs stem extraction
+3. Client polls:
+   `GET /api/status/{task_id}`
+4. On success, download ZIP:
+   `GET /api/download/{task_id}`
 
-- Task submitted via API:
-  - `POST /api/submit/{ID}` — receives the YouTube video ID in path param;
-  - responds with a `TASK_ID`;
-- Task is enqueued using Celery;
-- Client can poll for task status:
-  - `GET /api/status/{TASK_ID}`;
-- When complete, result files are stored temporarily:
-  - files are deleted after download;
-  - cleanup worker planned for the future;
-  - currently stored locally, but may move to CDN later;
-- Client can:
-  - `GET /api/download/{TASK_ID}` to download the result;
-- Multiple requests are allowed:
-  - API is `asynchronous`;
-  - background worker is `synchronous` (single job at a time).
+* Results are temporary; files auto-delete after download
+* CDN support and cleanup workers planned
+* Background worker is **synchronous** (1 job at a time), API is **asynchronous**
 
-## How to use
+## Usage
 
-This project runs with Docker. If Docker is available on your machine:
+Requires Docker.
 
-- Clone or download this repository;
-- Navigate to the folder in terminal;
-- Run:
-```shell
+```bash
 docker-compose up --build
-````
+```
 
-For later runs, omit the `--build` flag.
+Then access: [http://localhost:8000/app](http://localhost:8000/app)
 
-After startup, access the web interface at `http://localhost:8000/app`.
+### API Examples
 
-You can also use the API via terminal with curl or any HTTP client:
+```bash
+# Submit job
+curl -X POST http://localhost:8000/api/submit/vjVkXlxsO8Q
 
-* `POST /api/submit/{youtube_video_id}`
+# Check status
+curl http://localhost:8000/api/status/{task_id}
 
-  * responds with a `task ID`;
-  * example: `curl -X POST http://localhost:8000/api/submit/vjVkXlxsO8Q`
-  * response: `{"task_id":"9332b4ce-bb5b-4ecf-9457-e14581486223","status":"PENDING","error":null}`
-* `GET /api/status/{task_id}`
+# Download result (once ready)
+curl -O http://localhost:8000/api/download/{task_id}
+```
 
-  * example: `curl http://localhost:8000/api/status/9332b4ce-bb5b-4ecf-9457-e14581486223`
-  * response: `{"task_id":"9332b4ce-bb5b-4ecf-9457-e14581486223","status":"SUCCESS","error":null}`
-* `GET /api/download/{task_id}`
+> The `/app` UI handles all API interactions.
 
-  * TODO: add usage examples
+## Notes
 
-If you don't want to deal with curl endpointing, the web UI page at `/app` handles then for you.
+* Spleeter depends on FFMPEG and pretrained models → large container
+* First build is slow (\~500s)
+* High memory usage can crash tasks
+* Long videos may fail due to TensorFlow memory issues
 
-> Note 1: Spleeter uses FFMPEG and pretrained model binaries, so container size is large.
+## Project Layout
 
-> Note 2: Due to heavy dependencies, container build takes time.
+```
+/
+├── Dockerfile, docker-compose.yaml, pyproject.toml, uv.lock
+├── /server        # Python backend
+└── /web_client    # React UI
+```
 
-> Note 3: You may face low-memory issues depending on your machine.
+## Known Issues
 
-> Note 4: On my machine, Docker takes around 500 seconds to build the container.
+* TensorFlow memory leaks can crash tasks
+* Celery queue should remain small (≤2 jobs)
+* Restart container on failure
 
-## Project structure
+In this current project state, I implemented a strategy to save some memory. Instead of calling spleeter to separate a full song, now we separate the song in "chunks", which uses less memory, once spleeter will load less data to tensorflow/keras each time. After creating lot of separated chunks, I used *FFMPEG* to glue then and make a new track. This saves memory but can lead to weird sound abruptely, due to new chunk conversion is a absolutely new tensorflow model prediction and so on. By the way, based on my personal observation, the results are fine, making possible to request separation of a lot of songs in the celery queue again.
 
-From project root:
+Other thing to improve is use some kind of CDN cache. Youtube videos doesn't changes their IDs, so we can store each new separation result in a CDN remote cache and, if the application receive the request for an existing ID, then just return the CDN cache content. If it was not possible to find in CDN, finally we perform the separation pipeline. This can save HUGE memory for existing items in cache. Should be my next improvement at this project.
 
-* `Dockerfile`, `docker-compose.yaml`, `pyproject.toml`, `uv.lock`
+## License
 
-  * required files to build and run the container;
-* `/server`
-
-  * Python source code;
-* `/web_client`
-
-  * React + Vite project to generate a static web page.
-
-## Known issues
-
-Due to memory usage and processing intensity, you may face:
-
-* Worker task crash in container:
-
-  * likely due to memory leaks — Spleeter (via TensorFlow/Keras) may not release memory or dispose C++ tensors properly between tasks;
-  * workaround: keep Celery queue small (max 2 jobs); if one fails, restart container and re-submit the task;
-* Long YouTube videos can crash the worker due to memory exhaustion.
+See [LICENSE](./LICENSE) for details.
 
 ## Contributing
 
-This is a personal-use project, but it's also a good learning opportunity. I'm likely to miss best practices in some areas, so any contribution or feedback is welcome.
+This is a personal-use project, but contributions or suggestions are welcome!
