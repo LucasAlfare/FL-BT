@@ -21,6 +21,8 @@
 
 This project wraps [Spleeter](https://github.com/deezer/spleeter) to extract audio stems from one or more YouTube videos.
 
+> ⚠️ Warning: This projetct is not tested/compatible with ARM64 architectures.
+
 ---
 
 ## Overview
