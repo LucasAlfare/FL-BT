@@ -27,17 +27,11 @@ This project wraps [Spleeter](https://github.com/deezer/spleeter) to extract aud
 
 ## Overview
 
-Each job takes YouTube video IDs as input and returns a ZIP with extracted stems.
-
-This was born as a CLI tool, now I expanded to an app exposed via HTTP API. Dockerized for cross-environment use.
+This was born as a CLI tool, now I expanded to an app, exposed via HTTP API. Dockerized for cross-environment use.
 
 Ideal for musicians extracting stems locally, without relying on paid services. Future enhancements may include stem merging.
 
-> **Warning**: High CPU and RAM usage. Designed for localhost use for now.
-> Remote/VPS deployments are possible but **not recommended** for now due to:
-> 
-> * Lack of authentication or rate limiting;
-> * Single-threaded worker limits concurrency adjusts;
+Each job takes YouTube video IDs as input and returns a ZIP (URL to it) with extracted stems.
 
 ---
 
@@ -47,7 +41,7 @@ This project uses Docker with `.env` variables to work.
 
 ### .env Configuration and GitHub as CDN
 
-This project requires a `.env` file for configuration, as all CDN-related functionality currently depends exclusively on GitHub repositories acting as a CDN. No other CDN providers are supported at this moment.
+A `.env` file is required for configuration, as all CDN-related functionality currently depends exclusively on GitHub repositories acting as a CDN. No other CDN providers are supported at this moment.
 
 You **must** have:
 
