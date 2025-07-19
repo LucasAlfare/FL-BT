@@ -43,16 +43,16 @@ Originally built as a CLI tool, it is now a web app with an HTTP API, fully Dock
 
 1. Requirements
 
-Docker
+- Docker
 
-A GitHub repository for caching results.
+- A GitHub repository for caching results.
 
-A GitHub Personal Access Token (PAT) with repository permissions.
+- A GitHub Personal Access Token (PAT) with repository permissions.
 
 
 2. .env Setup
 
-Create a .env file with:
+- Create a .env file with:
 
 ```envfile
 GITHUB_USERNAME=username
@@ -79,7 +79,6 @@ docker-compose up --build
 ```
 
 Once running, open: http://localhost:8000/app
-
 
 ---
 
