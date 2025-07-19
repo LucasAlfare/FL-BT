@@ -134,7 +134,7 @@ curl -O http://localhost:8000/api/download/{task_id}
 
 * Spleeter depends on FFMPEG and pretrained models → large container
 * First build is slow (\~500s)
-* High memory usage can crash tasks
+* High memory usage can crash tasks is chunk size is set to higher duration values (e.g.: 1+ min)
 * Long videos may fail due to TensorFlow memory issues
 
 ---
@@ -152,9 +152,13 @@ curl -O http://localhost:8000/api/download/{task_id}
 
 ## Known Issues
 
-In this current project state, I implemented a strategy to save some memory. Instead of calling spleeter to separate a full song, now we separate the song in "chunks", which uses less memory, once spleeter will load less data to tensorflow/keras each time. After creating a lot of separated chunks, I used *FFMPEG* to glue them and make a new track. This saves memory but can lead to weird abrupt sound transitions, due to new chunk conversion being a new TensorFlow model prediction. The results are acceptable for queueing multiple songs in Celery. Finally, I have set the chunks to 45 seconds, and the abrupt sound transitions would not happen too much. 
+In this current project state, I implemented a strategy to save some memory. Instead of calling spleeter to separate a full song, now we separate the song in "chunks", which uses less memory, once spleeter will load less data to tensorflow/keras each time. After creating a lot of separated chunks, I used *FFMPEG* to glue them together and make a new track. This saves memory but can lead to micro weird abrupt sound transitions, due to new chunk conversion being a new TensorFlow model prediction. The results are acceptable for queueing multiple songs in Celery. Finally, I have set the chunks to 45 seconds, and the abrupt sound transitions would not happen too much. 
 
-Another planned improvement is proper CDN caching. Since YouTube video IDs don't change, storing separation results in a CDN cache avoids re-processing. Currently, only GitHub repositories act as this cache. As was said, currently I am using GitHub repositories itself as CDN provider. More on this in the future.
+Is possible to check alternatives to avoid cuts between chunks, based on the time precision when offsetting the audio. However this can be a natural problem, once the timing precision is not guaranteed in terms of floating points numbers. 
+
+Another planned improvement is proper CDN caching. Since YouTube video IDs don't change, storing separation results in a CDN cache avoids re-processing. Currently, only GitHub repositories act as this cache.
+
+With the project growing, I can use real money to pay for real CDN services, leaving off the McGyverism of using github repositories as CDN. 
 
 ---
 
